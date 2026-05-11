@@ -152,7 +152,7 @@ emergency referral is worse than extra review load [7, 4].
 |---|---|
 | Live Streamlit workbench | <https://maaswasth-workbench-491690076762.asia-south1.run.app> |
 | GitHub repository | <https://github.com/iamjr15/maaswasth-eval> |
-| CeRAI issues and PRs filed | <https://github.com/cerai-iitm/AIEvaluationTool/issues?q=author%3Aiamjr15> |
+| CeRAI issues filed | <https://github.com/cerai-iitm/AIEvaluationTool/issues?q=author%3Aiamjr15> |
 
 ---
 
