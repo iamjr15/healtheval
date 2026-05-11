@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MaaSwasth Eval — Demonstration UI</title>
+<style>
+  :root { --red:#c0392b; --amber:#e67e22; --green:#27ae60; --bg:#f7f7f5; --fg:#1a1a1a; --mut:#666; --bd:#ddd; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; max-width:780px; margin:0 auto; padding:24px; background:var(--bg); color:var(--fg); }
+  h1 { font-size:20px; margin:0 0 6px; }
+  .banner { background:#fff8e1; border:1px solid #f0c36d; padding:12px 14px; border-radius:6px; font-size:13px; line-height:1.5; margin-bottom:18px; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 6px; }
+  select, textarea, button { width:100%; font-size:14px; padding:10px; border:1px solid var(--bd); border-radius:6px; background:#fff; font-family:inherit; }
+  textarea { min-height:100px; resize:vertical; }
+  button { background:#1a73e8; color:#fff; font-weight:600; border:none; cursor:pointer; margin-top:14px; }
+  button:disabled { background:#9aa; cursor:not-allowed; }
+  .response { margin-top:20px; padding:14px; background:#fff; border:1px solid var(--bd); border-radius:6px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:12px; color:#fff; font-size:12px; font-weight:700; letter-spacing:.4px; }
+  .badge.RED { background:var(--red); } .badge.AMBER { background:var(--amber); } .badge.GREEN { background:var(--green); } .badge.UNKNOWN { background:#888; }
+  .nlp { white-space:pre-wrap; line-height:1.55; margin:8px 0 14px; }
+  .meta { color:var(--mut); font-size:12px; border-top:1px solid var(--bd); padding-top:8px; margin-top:10px; }
+  pre { background:#f1f1ef; padding:10px; border-radius:4px; font-size:12px; overflow:auto; }
+  .err { background:#fdecea; border-color:#f5b1aa; color:#8b1a14; }
+  .red-flags li { color:var(--red); }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; vertical-align:middle; margin-right:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  footer { color:var(--mut); font-size:11px; margin-top:24px; line-height:1.5; }
+</style>
+</head>
+<body>
+<h1>MaaSwasth Eval — Demonstration UI</h1>
+<div class="banner">
+  <b>Demonstration UI — NOT measured results;</b> see §6 of report for systematic evaluation. Single-message demo behavior is NOT representative of the §6 measured results across 60 prompts × 4 models × 3 judges with bootstrap CIs and per-stratum equity stratification.
+</div>
+
+<label for="model">Model</label>
+<select id="model">
+  <option value="sarvam-30b">Sarvam-30b (sovereign Indic)</option>
+  <option value="sarvam-105b">Sarvam-105b (sovereign Indic)</option>
+  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+</select>
+
+<label for="msg">Hindi prompt</label>
+<textarea id="msg" lang="hi" placeholder="अपना प्रश्न यहाँ लिखें (जैसे: मेरा बच्चा 6 महीने का है, क्या उसे ठोस आहार देना शुरू करूँ?)"></textarea>
+
+<button id="submit">Submit</button>
+
+<div id="out"></div>
+
+<footer>
+  demo throttled by best-effort in-memory guard + per-vendor daily budget caps
+</footer>
+
+<script>
+const btn = document.getElementById("submit");
+const out = document.getElementById("out");
+const msg = document.getElementById("msg");
+const sel = document.getElementById("model");
+
+btn.addEventListener("click", async () => {
+  const message = msg.value.trim();
+  const model = sel.value;
+  if (!message) { out.innerHTML = '<div class="response err">Please enter a Hindi prompt.</div>'; return; }
+  btn.disabled = true;
+  out.innerHTML = '<div class="response"><span class="spinner"></span>Querying ' + model + '…</div>';
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, message }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 429) {
+      out.innerHTML = '<div class="response err"><b>Rate limited (429):</b> ' + (data.error || "demo daily budget exhausted, retry tomorrow") + '</div>';
+    } else if (!res.ok) {
+      out.innerHTML = '<div class="response err"><b>Error ' + res.status + ':</b> ' + (data.error || "request failed") + '</div>';
+    } else {
+      render(data);
+    }
+  } catch (e) {
+    out.innerHTML = '<div class="response err"><b>Network error:</b> ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function render(d) {
+  const t = d.triage_json || {};
+  const label = t.triage_label || "UNKNOWN";
+  const flags = Array.isArray(t.red_flags_detected) ? t.red_flags_detected : [];
+  const referral = t.referral_action || "—";
+  const parseWarn = d.parse_succeeded === false
+    ? '<div class="banner">⚠ Schema parse failed — model output did not contain a valid triage JSON block (triage_label ∈ {RED,AMBER,GREEN}, referral_action ∈ {continue, refer_anm, refer_phc, refer_mch_emergency}, red_flags_detected: list). Per §6.4 axis 11, parse failures count as wrong; surfaced honestly here.</div>'
+    : '';
+  const flagsHtml = flags.length
+    ? '<ul class="red-flags">' + flags.map(f => '<li>' + escapeHtml(String(f)) + '</li>').join('') + '</ul>'
+    : '<p style="color:#666;font-size:13px;">no red flags detected</p>';
+  out.innerHTML =
+    '<div class="response">' +
+      parseWarn +
+      '<div class="nlp">' + escapeHtml(d.response || "") + '</div>' +
+      '<div><span class="badge ' + label + '">' + label + '</span>' +
+      ' &nbsp;<span style="font-size:13px;color:#444;">referral: ' + escapeHtml(referral) + '</span></div>' +
+      '<div style="margin-top:10px;font-size:13px;"><b>red flags detected:</b></div>' +
+      flagsHtml +
+      '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:#555;">raw triage_json</summary>' +
+      '<pre>' + escapeHtml(JSON.stringify(t, null, 2)) + '</pre></details>' +
+      '<div class="meta">model: ' + escapeHtml(d.model_id || "?") + ' | latency: ' + (d.latency_ms || "?") + 'ms</div>' +
+    '</div>';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+FROM ghcr.io/astral-sh/uv:latest AS uv
+
+FROM node:20-bookworm-slim
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv python3-pip ca-certificates \
+    && npm install -g promptfoo@0.121.11 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+ENV PROMPTFOO_DISABLE_TELEMETRY=1
+ENV PROMPTFOO_PYTHON=/workspace/.venv/bin/python

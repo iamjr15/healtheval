@@ -1,0 +1,166 @@
+# Reviewer workflow:
+#   docker compose up --build
+#
+# The default path validates .env, runs offline smoke tests, then starts the
+# Streamlit workbench at http://localhost:8501.
+
+services:
+  env-check:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: python scripts/check_env.py .env
+
+  smoke:
+    build:
+      context: .
+      dockerfile: Dockerfile.promptfoo
+    working_dir: /workspace
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_ADDOPTS: "-p no:cacheprovider"
+      UV_LINK_MODE: copy
+    volumes:
+      - .:/workspace
+      - uv_venv_py312:/workspace/.venv
+    command: >
+      bash -lc "
+        uv sync --frozen --extra dev &&
+        uv run pytest tests/smoke/ -v --maxfail=1
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+
+  workbench:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /workspace
+    environment:
+      PYTHONPATH: /workspace:/app
+      PYTHONDONTWRITEBYTECODE: "1"
+      UV_LINK_MODE: copy
+    ports:
+      - "8501:8080"
+    volumes:
+      - .:/workspace
+    command: >
+      sh -c "
+        if [ -f /workspace/.env ]; then
+          set -a;
+          . /workspace/.env;
+          set +a;
+        fi;
+        exec streamlit run /workspace/streamlit_app/app.py --server.port=8080 --server.address=0.0.0.0 --server.enableXsrfProtection=true
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+      smoke:
+        condition: service_completed_successfully
+
+  preflight:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    profiles: ["test"]
+    working_dir: /workspace
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_ADDOPTS: "-p no:cacheprovider"
+      UV_LINK_MODE: copy
+    volumes:
+      - .:/workspace
+      - uv_venv_py312:/workspace/.venv
+    command: >
+      bash -lc "
+        python scripts/check_env.py .env --require-keys &&
+        set -a &&
+        . .env &&
+        set +a &&
+        uv sync --frozen --extra dev &&
+        bash scripts/preflight_check.sh --with-keys --with-findings
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+
+  promptfoo-saved:
+    build:
+      context: .
+      dockerfile: Dockerfile.promptfoo
+    profiles: ["test"]
+    working_dir: /workspace
+    environment:
+      PROMPTFOO_DISABLE_TELEMETRY: "1"
+      PROMPTFOO_PYTHON: /workspace/.venv/bin/python
+      MAASWASTH_PROMPTFOO_LIMIT: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      UV_LINK_MODE: copy
+    volumes:
+      - .:/workspace
+      - promptfoo_venv:/workspace/.venv
+    command: >
+      bash -lc "
+        if [ -f .env ]; then set -a && . .env && set +a; fi &&
+        uv sync --frozen --extra dev &&
+        promptfoo eval -c promptfooconfig.saved.yaml
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+
+  promptfoo-live:
+    build:
+      context: .
+      dockerfile: Dockerfile.promptfoo
+    profiles: ["live-eval"]
+    working_dir: /workspace
+    environment:
+      PROMPTFOO_DISABLE_TELEMETRY: "1"
+      PROMPTFOO_PYTHON: /workspace/.venv/bin/python
+      PYTHONDONTWRITEBYTECODE: "1"
+      UV_LINK_MODE: copy
+    volumes:
+      - .:/workspace
+      - promptfoo_venv:/workspace/.venv
+    command: >
+      bash -lc "
+        python scripts/check_env.py .env --require-keys &&
+        set -a &&
+        . .env &&
+        set +a &&
+        uv sync --frozen --extra dev &&
+        promptfoo eval -c promptfooconfig.yaml
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+
+  panel-eval:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    profiles: ["live-eval"]
+    working_dir: /workspace
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      UV_LINK_MODE: copy
+    volumes:
+      - .:/workspace
+      - uv_venv_py312:/workspace/.venv
+    command: >
+      bash -lc "
+        python scripts/check_env.py .env --require-keys &&
+        set -a &&
+        . .env &&
+        set +a &&
+        uv sync --frozen --extra dev &&
+        uv run python scripts/run_panel_refset_eval.py --force &&
+        uv run python scripts/compute_panel_tool_meta.py
+      "
+    depends_on:
+      env-check:
+        condition: service_completed_successfully
+
+volumes:
+  uv_venv_py312:
+  promptfoo_venv:

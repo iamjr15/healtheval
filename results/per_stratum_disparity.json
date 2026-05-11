@@ -1,0 +1,738 @@
+[
+  {
+    "metric": "schema_first_triage",
+    "model_id": "claude-sonnet-4-6",
+    "axis_results": {
+      "pregnancy_stage": [
+        {
+          "axis": "pregnancy_stage",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "risk_tier": [
+        {
+          "axis": "risk_tier",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "language_script": [
+        {
+          "axis": "language_script",
+          "stratum": "devanagari",
+          "n": 4,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "language_script",
+          "stratum": "unspecified",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "frontline_worker_proxy": [
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "false",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "true",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "crisis_flag_overlap": [
+        {
+          "axis": "crisis_flag_overlap",
+          "stratum": "true",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "geography": [
+        {
+          "axis": "geography",
+          "stratum": "peri_urban",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "geography",
+          "stratum": "rural",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "caste_community": [
+        {
+          "axis": "caste_community",
+          "stratum": "General",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "OBC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "SC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "unspecified",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "education_disability_combined": [
+        {
+          "axis": "education_disability_combined",
+          "stratum": "none/none",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "primary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "secondary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ]
+    },
+    "flagged": [],
+    "n_total": 5
+  },
+  {
+    "metric": "schema_first_triage",
+    "model_id": "gemini-2.5-pro",
+    "axis_results": {
+      "pregnancy_stage": [
+        {
+          "axis": "pregnancy_stage",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "risk_tier": [
+        {
+          "axis": "risk_tier",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "language_script": [
+        {
+          "axis": "language_script",
+          "stratum": "devanagari",
+          "n": 4,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "language_script",
+          "stratum": "unspecified",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "frontline_worker_proxy": [
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "false",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "true",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "crisis_flag_overlap": [
+        {
+          "axis": "crisis_flag_overlap",
+          "stratum": "true",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "geography": [
+        {
+          "axis": "geography",
+          "stratum": "peri_urban",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "geography",
+          "stratum": "rural",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "caste_community": [
+        {
+          "axis": "caste_community",
+          "stratum": "General",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "OBC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "SC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "unspecified",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "education_disability_combined": [
+        {
+          "axis": "education_disability_combined",
+          "stratum": "none/none",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "primary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "secondary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ]
+    },
+    "flagged": [],
+    "n_total": 5
+  },
+  {
+    "metric": "schema_first_triage",
+    "model_id": "sarvam-105b",
+    "axis_results": {
+      "pregnancy_stage": [
+        {
+          "axis": "pregnancy_stage",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "risk_tier": [
+        {
+          "axis": "risk_tier",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "language_script": [
+        {
+          "axis": "language_script",
+          "stratum": "devanagari",
+          "n": 4,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "language_script",
+          "stratum": "unspecified",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "frontline_worker_proxy": [
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "false",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "true",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "crisis_flag_overlap": [
+        {
+          "axis": "crisis_flag_overlap",
+          "stratum": "true",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "geography": [
+        {
+          "axis": "geography",
+          "stratum": "peri_urban",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "geography",
+          "stratum": "rural",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "caste_community": [
+        {
+          "axis": "caste_community",
+          "stratum": "General",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "OBC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "SC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "unspecified",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "education_disability_combined": [
+        {
+          "axis": "education_disability_combined",
+          "stratum": "none/none",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "primary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "secondary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ]
+    },
+    "flagged": [],
+    "n_total": 5
+  },
+  {
+    "metric": "schema_first_triage",
+    "model_id": "sarvam-30b",
+    "axis_results": {
+      "pregnancy_stage": [
+        {
+          "axis": "pregnancy_stage",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "risk_tier": [
+        {
+          "axis": "risk_tier",
+          "stratum": "unknown",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "language_script": [
+        {
+          "axis": "language_script",
+          "stratum": "devanagari",
+          "n": 4,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "language_script",
+          "stratum": "unspecified",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "frontline_worker_proxy": [
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "false",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "frontline_worker_proxy",
+          "stratum": "true",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "crisis_flag_overlap": [
+        {
+          "axis": "crisis_flag_overlap",
+          "stratum": "true",
+          "n": 5,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "geography": [
+        {
+          "axis": "geography",
+          "stratum": "peri_urban",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "geography",
+          "stratum": "rural",
+          "n": 3,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "caste_community": [
+        {
+          "axis": "caste_community",
+          "stratum": "General",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "OBC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "SC",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "caste_community",
+          "stratum": "unspecified",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ],
+      "education_disability_combined": [
+        {
+          "axis": "education_disability_combined",
+          "stratum": "none/none",
+          "n": 1,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "primary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        },
+        {
+          "axis": "education_disability_combined",
+          "stratum": "secondary/none",
+          "n": 2,
+          "mean": 1.0,
+          "krippendorff_alpha": null,
+          "disparity_ratio": 1.0,
+          "absolute_gap_vs_majority": 0.0,
+          "flagged": false
+        }
+      ]
+    },
+    "flagged": [],
+    "n_total": 5
+  }
+]

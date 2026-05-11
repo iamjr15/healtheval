@@ -1,0 +1,66 @@
+[project]
+name = "maaswasth-eval"
+version = "0.1.0"
+description = "MaaSwasth Eval Harness — Path B critique-and-rebuild evaluator for Hindi maternal and newborn health chatbot safety."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Jigyansu Rout", email = "jigyansu@riverline.ai" },
+]
+
+# Note: `promptfoo` is intentionally NOT listed here — it is an npm package
+# installed by the Docker Promptfoo services or by `npm i -g promptfoo@0.121.11`.
+dependencies = [
+    # data validation + config
+    "pydantic>=2.6,<3",
+    "pyyaml>=6.0,<7",
+    "jsonschema>=4.21,<5",
+    "python-dotenv>=1.0,<2",
+    # dashboard/runtime UI
+    "pandas>=2.2,<4",
+    "plotly>=5.20,<7",
+    "streamlit>=1.35,<2",
+    # async + http
+    "httpx>=0.27,<1",
+    "krippendorff>=0.6,<1",
+    "scipy>=1.12,<2",
+    "statsmodels>=0.14,<1",
+    "pingouin>=0.5,<1",
+    # eval frameworks used for companion checks
+    "deepeval>=1.0,<3",
+    "inspect-ai>=0.3,<1",
+    # vendor SDKs for the 4-model panel
+    "anthropic>=0.40,<1",
+    "google-genai>=0.3,<2",
+    "nltk>=3.9.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "pytest-asyncio>=0.23,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Keep hatchling happy without adding a package layout.
+packages = []
+bypass-selection = true
+
+[tool.uv]
+resolution = "highest"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "smoke: <60s offline smoke tests that gate the foundation scaffolding.",
+    "integration: end-to-end tests that exercise teammate-shipped artefacts (FindingsSchema round-trip, system_prompt ↔ TriageOutput consistency). Slower than the smoke budget; runs after data-spec + eval-core land.",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

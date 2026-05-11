@@ -1,0 +1,27 @@
+# Streamlit theme and server config.
+
+[theme]
+base = "light"
+primaryColor = "#1F4E79"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#1A1A1A"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+port = 8080
+address = "0.0.0.0"
+enableXsrfProtection = true
+maxUploadSize = 5
+
+[runner]
+fastReruns = true
+magicEnabled = false
+
+[client]
+showErrorDetails = "stacktrace"
+toolbarMode = "minimal"

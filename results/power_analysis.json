@@ -1,0 +1,66 @@
+{
+  "pregnancy_stage": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "risk_tier": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "language_script": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "frontline_worker_proxy": {
+    "n": 30,
+    "detectable_d": 0.529235615112954,
+    "label": "large",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "crisis_flag_overlap": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "geography": {
+    "n": 30,
+    "detectable_d": 0.529235615112954,
+    "label": "large",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "caste_community": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  },
+  "education_disability_combined": {
+    "n": 0,
+    "detectable_d": Infinity,
+    "label": "very-large-only",
+    "sufficient_for_medium_effects": false,
+    "alpha": 0.05,
+    "target_power": 0.8
+  }
+}
