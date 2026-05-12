@@ -101,12 +101,16 @@ def _load(p: Path) -> dict[str, Any]:
 
 
 def main() -> int:
-    if not CERAI.exists() or not MAAS.exists():
-        print("Both scoring artifacts must exist. Run score_perturbations_*.py first.", file=sys.stderr)
+    if not CERAI.exists():
+        print(f"{CERAI} missing — run scripts/score_perturbations_cerai_dashboard.py first.", file=sys.stderr)
         return 1
+    if not MAAS.exists():
+        print(f"{MAAS} missing — proceeding with CeRAI-only audit.", file=sys.stderr)
+        maas = {"cells": []}
+    else:
+        maas = _load(MAAS)
 
     cerai = _load(CERAI)
-    maas = _load(MAAS)
 
     by_prompt_cerai: dict[str, dict[str, float]] = {}
     for c in cerai["cells"]:
