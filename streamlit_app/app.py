@@ -88,6 +88,11 @@ def _pages() -> list[st.Page]:  # type: ignore[name-defined]
             title="Audit Trace",
             url_path="Audit_Trace",
         ),
+        st.Page(
+            PAGE_DIR / "9_Real_World_Robustness.py",
+            title="Real-World Robustness",
+            url_path="Real_World_Robustness",
+        ),
     ]
 
 
