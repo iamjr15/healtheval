@@ -393,9 +393,10 @@ come from the same jury panel used for the canonical reference-set run.
 
 | Metric | CeRAI metric layer | MaaSwasth panel |
 |---|---:|---:|
-| Mean CeRAI score range per prompt | `[FILL from results/perturbation_audit.json]` | n/a |
-| Krippendorff α (interval, across cells) | `[FILL]` | `[FILL]` |
-| Prompts with identical flag across 7 cells | n/a | `[FILL] / 5` |
+| Mean score range per prompt (bootstrap 95% CI) | **0.247** [0.167, 0.327] | n/a (binary flag) |
+| Krippendorff α (interval; jackknife 95% CI) | 0.825 [0.685, 1.00] | **0.897** [0.833, 1.00] |
+| Prompts with identical flag across 7 cells (Wilson 95% CI) | n/a | **5 / 5** [0.566, 1.00] |
+| Mean flag-consistency | n/a | **1.00** |
 
 Full audit: `docs/perturbation_audit.md`. Streamlit page: `Real-World
 Robustness`. Raw scores: `results/perturbation_scores_*.json`. Compute script:
