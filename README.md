@@ -373,7 +373,7 @@ between catching risky cases and avoiding unnecessary flags. MaaSwasth is more
 conservative. It catches more risky cases, but it also sends more cases to
 human review. I show both so reviewers can inspect disagreements case by case.
 
-### Real-World Robustness Audit
+### Evaluator Stability Audit
 
 The sensitivity/specificity table above measures evaluator behaviour on a fixed
 30-prompt reference set. It does not measure stability under the surface-form

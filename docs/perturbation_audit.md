@@ -1,4 +1,4 @@
-# Real-World Robustness Audit
+# Evaluator Stability Audit
 
 This audit tests whether each evaluator gives consistent verdicts when the **same factual content** is delivered in the surface forms real Hindi mNH users actually produce. The target model is held fixed; the evaluator is the variable under test.
 

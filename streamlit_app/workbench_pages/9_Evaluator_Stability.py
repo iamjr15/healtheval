@@ -1,4 +1,4 @@
-"""Real-World Robustness audit page.
+"""Evaluator Stability page.
 
 Shows per-prompt CeRAI score drift and MaaSwasth flag/jury-mean consistency across six
 prose-level perturbations of the same factual content. Anchored on Eiras et al. (ICLR 2025
@@ -68,8 +68,8 @@ def _load_bases() -> dict[str, dict]:
 
 
 # === Page setup ===
-st.set_page_config(page_title="Real-World Robustness", layout="wide")
-st.title("Real-World Robustness Audit")
+st.set_page_config(page_title="Evaluator Stability", layout="wide")
+st.title("Evaluator Stability")
 
 st.markdown(
     "**The question this page answers.** When the *same factual content* is delivered in the "
