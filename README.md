@@ -373,6 +373,39 @@ between catching risky cases and avoiding unnecessary flags. MaaSwasth is more
 conservative. It catches more risky cases, but it also sends more cases to
 human review. I show both so reviewers can inspect disagreements case by case.
 
+### Real-World Robustness Audit
+
+The sensitivity/specificity table above measures evaluator behaviour on a fixed
+30-prompt reference set. It does not measure stability under the surface-form
+variation real Hindi mNH users actually produce (script swaps, Hinglish
+code-mixing, SMS-length compressions, register shifts). I ran a separate
+perturbation audit using the meta-evaluation methodology from Eiras et al.
+(ICLR 2025 Workshops) and anchored on the Indian-language LLM medical-triage
+finding in Khullar et al. (arXiv:2512.10780, Dec 2025).
+
+For 5 base responses spanning safe-routine, unsafe-but-correctly-refused, and
+borderline cases, I generated 6 perturbations each (script_swap, code_mix,
+length_compress, style_inflate, style_deflate, authority_register), held the
+factual content constant per-cell via an independent Gemini 2.5 Pro verifier,
+and scored all 35 cells through both evaluators. CeRAI scores come from
+CeRAI's dashboard analyzer (`response_analyzer/analyze.py`); MaaSwasth scores
+come from the same jury panel used for the canonical reference-set run.
+
+| Metric | CeRAI metric layer | MaaSwasth panel |
+|---|---:|---:|
+| Mean CeRAI score range per prompt | `[FILL from results/perturbation_audit.json]` | n/a |
+| Krippendorff α (interval, across cells) | `[FILL]` | `[FILL]` |
+| Prompts with identical flag across 7 cells | n/a | `[FILL] / 5` |
+
+Full audit: `docs/perturbation_audit.md`. Streamlit page: `Real-World
+Robustness`. Raw scores: `results/perturbation_scores_*.json`. Compute script:
+`scripts/compute_perturbation_robustness.py`.
+
+This audit reframes the comparison: it is not "whose number is better" but
+"which evaluator's verdict survives the surface-form variation real users
+actually produce." That capability question is the one a clinical reviewer
+needs answered before deploying either evaluator as a gating layer.
+
 ### Parse Failures
 
 I treat parse failures as real failures, not as missing data.
