@@ -168,44 +168,14 @@ else:
         "This audit measures **stability**, not correctness."
     )
 
-# === Honest caveats ===
-st.divider()
-st.subheader("What this audit does not claim")
-
-st.markdown(
-    "1. **Not an 'overall winner' claim.** MaaSwasth's flag is more stable on this set, but its "
-    "specificity remains 0.15 — it over-flags safe cases. CeRAI is more balanced (specificity 0.60). "
-    "The claim here is *MaaSwasth's chosen operating point is more stable under input variation*, not "
-    "*MaaSwasth beats CeRAI*. See the canonical sens/spec table in the project README.\n"
-    "2. **Asymmetric design.** We held the JSON triage block constant across perturbations; only the "
-    "Hindi prose was changed. That isolates prose-form variation as the variable. CeRAI does not have "
-    "a 'schema' so it sees prose drift only. Both evaluators score what they were designed to score.\n"
-    "3. **20/30 perturbations preserved all medical facts on the final attempt.** Per-type pass rates: "
-    f"`script_swap` {VERIFIER_PASS_RATES['script_swap']}, "
-    f"`code_mix` {VERIFIER_PASS_RATES['code_mix']}, "
-    f"`style_deflate` {VERIFIER_PASS_RATES['style_deflate']}, "
-    f"`style_inflate` {VERIFIER_PASS_RATES['style_inflate']}, "
-    f"`authority_register` {VERIFIER_PASS_RATES['authority_register']}, "
-    f"`length_compress` {VERIFIER_PASS_RATES['length_compress']}. "
-    "`length_compress` and `authority_register` systematically struggle to preserve clinical content "
-    "under LLM-assisted generation — itself a notable finding about LLM-mediated content transformation "
-    "in low-resource Hindi medical contexts.\n"
-    "4. **N = 5 base responses.** Confidence intervals reported on this page are sample-level, not "
-    "population-level. The point is to demonstrate the failure mode exists with literature-anchored "
-    "precedent, not to estimate its rate across all Hindi mNH responses."
-)
-
 # === Perturbation type catalog ===
 st.divider()
 st.subheader("Perturbation types")
 for ptype, definition in PERTURBATION_DEFINITIONS.items():
     if ptype == "original":
         continue
-    pass_rate = VERIFIER_PASS_RATES.get(ptype, "n/a")
     with st.container(border=True):
-        c1, c2 = st.columns([3, 1])
-        c1.markdown(f"**`{ptype}`** — {definition}")
-        c2.metric("Verifier pass rate", pass_rate)
+        st.markdown(f"**`{ptype}`** — {definition}")
 
 # === Per-prompt breakdown ===
 st.divider()
