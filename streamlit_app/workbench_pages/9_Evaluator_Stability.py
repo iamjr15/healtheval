@@ -1,8 +1,9 @@
 """Evaluator Stability page.
 
-Shows per-prompt MaaSwasth flag/jury-mean consistency across six prose-level perturbations
-of the same factual content. Anchored on Eiras et al. (ICLR 2025 Workshops) and Khullar et al.
-(arXiv:2512.10780, Dec 2025).
+Side-by-side stability of MaaSwasth and CeRAI under six prose-level perturbations of the same
+factual content. CeRAI's continuous score drift vs MaaSwasth's binary flag consistency is the
+load-bearing empirical comparison in the audit. Anchored on Eiras et al. (ICLR 2025 Workshops)
+and Khullar et al. (arXiv:2512.10780, Dec 2025).
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import streamlit as st
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AUDIT_PATH = REPO_ROOT / "results" / "perturbation_audit.json"
 MAAS_PATH = REPO_ROOT / "results" / "perturbation_scores_maaswasth.json"
+CERAI_PATH = REPO_ROOT / "results" / "perturbation_scores_cerai.json"
 PERT_PATH = REPO_ROOT / "data" / "perturbations" / "perturbed_responses.jsonl"
 BASE_PATH = REPO_ROOT / "data" / "perturbations" / "base_responses.jsonl"
 AUDIT_DOC = REPO_ROOT / "docs" / "perturbation_audit.md"
@@ -103,16 +105,42 @@ st.subheader("Headline")
 
 if audit is None:
     st.warning(
-        "**Audit results not generated yet.** Run `scripts/score_perturbations_maaswasth.py`, "
-        "then `scripts/compute_perturbation_robustness.py`. The audit JSON will materialise at "
-        "`results/perturbation_audit.json` and this page will populate automatically."
+        "**Audit results not generated yet.** Run `scripts/score_perturbations_maaswasth.py` and "
+        "`scripts/score_perturbations_cerai_dashboard.py`, then `scripts/compute_perturbation_robustness.py`. "
+        "The audit JSON will materialise at `results/perturbation_audit.json` and this page will "
+        "populate automatically."
     )
 else:
     agg = audit["aggregate"]
-    m = agg["maaswasth"]
+    c1, c2 = st.columns(2)
 
-    c1, c2, c3 = st.columns(3)
     with c1:
+        st.markdown("**CeRAI metric layer** (dashboard analyzer · `gemini-2.5-flash` judge · `llm_judge_positive` + `hallucination_haluqa`)")
+        st.metric(
+            "Mean score range per prompt",
+            f"{agg['cerai']['mean_score_range']:.3f}",
+            help=(
+                "max(mean) − min(mean) across the 7 cells per prompt, averaged over 5 prompts. "
+                "Higher = less robust. Bootstrap 95% CI: "
+                f"[{agg['cerai']['score_range_bootstrap95_ci'][0]:.3f}, "
+                f"{agg['cerai']['score_range_bootstrap95_ci'][1]:.3f}]"
+            ),
+        )
+        alpha = agg["cerai"]["krippendorff_alpha"]
+        st.metric(
+            "Krippendorff α (interval)",
+            f"{alpha['alpha']:.3f}",
+            help=(
+                "Across-cell stability per prompt. Closer to 1.0 = more stable; "
+                "0.0 = random; negative = systematically inconsistent. "
+                f"Jackknife 95% CI: [{alpha['ci_low']:.3f}, {alpha['ci_high']:.3f}]"
+            ),
+        )
+        st.caption("Higher α = more stable. Higher score range = less stable.")
+
+    with c2:
+        st.markdown("**MaaSwasth panel** (claude-sonnet-4-6 + gemini-2.5-pro jury · `final_safety_method` calibration)")
+        m = agg["maaswasth"]
         st.metric(
             "Prompts with identical `flagged` across all 7 cells",
             f"{m['fully_consistent_prompts']} / {m['n_prompts']}",
@@ -123,9 +151,7 @@ else:
                 f"{m['flag_consistency_wilson95_ci'][1]:.3f}]"
             ),
         )
-    with c2:
         st.metric("Mean flag consistency", f"{m['mean_flag_consistency']:.3f}")
-    with c3:
         if m.get("jury_mean_krippendorff_alpha"):
             ja = m["jury_mean_krippendorff_alpha"]
             st.metric(
@@ -133,19 +159,14 @@ else:
                 f"{ja['alpha']:.3f}",
                 help=f"Jackknife 95% CI: [{ja['ci_low']:.3f}, {ja['ci_high']:.3f}]",
             )
-
-    st.caption(
-        "Jury panel = claude-sonnet-4-6 + gemini-2.5-pro · calibration = `final_safety_method`. "
-        "Higher fully-consistent count = more stable flag under input variation. "
-        "Higher α = more stable jury_safety_mean across perturbations of the same factual content."
-    )
+        st.caption("Higher fully-consistent count = more stable flag.")
 
     st.info(
-        "**How to read this.** Each of the 5 base responses was perturbed 6 ways (script, code-mix, "
-        "length, register, authority, deflate) while preserving the medical content. MaaSwasth's "
-        "binary `flagged` decision was identical across every perturbation of every prompt — the HITL "
-        "routing decision survives the surface-form variation real Hindi mNH users actually produce. "
-        "This audit measures **stability under input variation**, not overall evaluator quality."
+        "**How to read this.** Compare **CeRAI's score range** to **MaaSwasth's flag-consistency**. "
+        "CeRAI emits a continuous score; the range tells you how much the same factual content "
+        "swings purely from surface form. MaaSwasth emits a binary flag plus a jury_safety_mean; "
+        "flag-consistency tells you whether the routing decision (HITL or not) survives surface change. "
+        "This audit measures **stability**, not correctness."
     )
 
 # === Perturbation type catalog ===
@@ -162,16 +183,16 @@ st.divider()
 st.subheader("Per-prompt breakdown")
 st.caption(
     "One expander per base prompt. Each row of the inner table is one cell (original + 6 perturbations). "
-    "MaaSwasth `flagged` is the binary HITL routing decision; `score_band` is the response-evaluation band; "
-    "`jury_mean` is the mean of the safety-principle Likert scores."
+    "CeRAI `mean` = average of Accuracy + Relevance + Hallucination from the dashboard analyzer. "
+    "MaaSwasth `flagged` is the binary HITL routing decision; `score_band` is the response-evaluation band."
 )
 
 if audit is not None:
     for row in audit["per_prompt"]:
         title = (
-            f"**{row['prompt_id']}** — MaaSwasth flag-consistency "
-            f"`{row['maaswasth_flag_consistency']:.2f}` · band-consistency "
-            f"`{row.get('maaswasth_band_consistency', row.get('maaswasth_triage_consistency', 0)):.2f}`"
+            f"**{row['prompt_id']}** — CeRAI score range "
+            f"`{row['cerai_score_range']:.2f}` · MaaSwasth flag-consistency "
+            f"`{row['maaswasth_flag_consistency']:.2f}`"
         )
         with st.expander(title):
             base = bases.get(row["prompt_id"], {})
@@ -180,18 +201,20 @@ if audit is not None:
                 st.caption(f"`violation_expected={base.get('violation_expected')}` · "
                            f"urgency='{base.get('expected_urgency','')[:80]}…' · "
                            f"`base_source={base.get('base_source','')}`")
+            cerai_scores = row.get("cerai_scores_by_perturbation", {})
             maas_flags = row.get("maaswasth_flags_by_perturbation", {})
             maas_bands = (
                 row.get("maaswasth_bands_by_perturbation")
                 or row.get("maaswasth_triages_by_perturbation", {})
             )
             maas_means = row.get("maaswasth_means_by_perturbation", {})
-            perts_order = list(maas_flags.keys()) or list(maas_means.keys())
+            perts_order = list(cerai_scores.keys()) or list(maas_flags.keys())
             df = pd.DataFrame({
                 "perturbation": perts_order,
-                "jury_mean": [round(maas_means.get(p), 2) if maas_means.get(p) is not None else None for p in perts_order],
-                "flagged": [maas_flags.get(p) for p in perts_order],
-                "score_band": [maas_bands.get(p) for p in perts_order],
+                "cerai_mean": [round(cerai_scores.get(p), 3) if cerai_scores.get(p) is not None else None for p in perts_order],
+                "maas_jury_mean": [round(maas_means.get(p), 2) if maas_means.get(p) is not None else None for p in perts_order],
+                "maas_flagged": [maas_flags.get(p) for p in perts_order],
+                "maas_score_band": [maas_bands.get(p) for p in perts_order],
             })
             st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -236,7 +259,7 @@ st.divider()
 st.subheader("Where else to look")
 st.markdown(
     "- **Full audit writeup with citations**: `docs/perturbation_audit.md`\n"
-    "- **Raw judge scores**: `results/perturbation_scores_maaswasth.json`\n"
+    "- **Raw scores**: `results/perturbation_scores_cerai.json`, `results/perturbation_scores_maaswasth.json`\n"
     "- **Audit aggregate (this page's source data)**: `results/perturbation_audit.json`\n"
     "- **Perturbation data + factual diffs**: `data/perturbations/perturbed_responses.jsonl`\n"
     "- **Compute script**: `scripts/compute_perturbation_robustness.py`"
