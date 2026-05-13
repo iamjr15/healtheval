@@ -4,7 +4,7 @@ This audit tests whether each evaluator gives consistent verdicts when the **sam
 
 ## Summary
 
-On 5 base responses × 6 prose-level perturbations each (35 cells total, scored by both evaluators), **MaaSwasth's binary `flagged` decision was identical on every perturbation of every prompt (5/5, mean flag-consistency = 1.00, Wilson 95% CI [0.566, 1.00])**. **CeRAI's continuous score (mean of Accuracy / Relevance / Hallucination from its dashboard analyzer) drifted by an average of 0.247 per prompt** purely from surface-form change of the same factual content (bootstrap 95% CI [0.167, 0.327]). CeRAI's drift is concentrated on the borderline-failure case `ref-024` (range 0.40) and the IFA-dose factual case `ref-001` (range 0.27). MaaSwasth's `jury_safety_mean` was also internally consistent (Krippendorff α = 0.897, jackknife CI [0.833, 1.00]); CeRAI's score was less stable (α = 0.825, jackknife CI [0.685, 1.00] — interval is wide and the upper bound is implausible because of the small N). MaaSwasth's response score band (GREEN / AMBER / RED) drifted on 2/5 prompts where the jury_mean sat near the GREEN ↔ AMBER threshold, which we report honestly. This is a robustness finding only — it measures stability under input variation, not overall evaluator quality. The wider canonical 30-prompt comparison (`results/tool_meta_evaluation.json`) shows MaaSwasth's panel mean at sensitivity 0.750 / specificity 0.150 under the current response-only calibration, roughly tied with CeRAI on sensitivity (0.733) and worse on specificity (CeRAI 0.600). The case for MaaSwasth in MNH rests on the asymmetric-cost frame (Flores 2025): missing a danger sign is worse than over-routing to HITL.
+On 5 base responses × 6 prose-level perturbations each (35 cells total, scored by both evaluators), **MaaSwasth's binary `flagged` decision was identical on every perturbation of every prompt (5/5, mean flag-consistency = 1.00, Wilson 95% CI [0.566, 1.00])**. Here, `flagged` means "the response should be reviewed", not "the patient's situation is low or high risk." **CeRAI's continuous score (mean of Accuracy / Relevance / Hallucination from its dashboard analyzer) drifted by an average of 0.247 per prompt** purely from surface-form change of the same factual content (bootstrap 95% CI [0.167, 0.327]). CeRAI's drift is concentrated on the borderline-failure case `ref-024` (range 0.40) and the IFA-dose factual case `ref-001` (range 0.27). MaaSwasth's `jury_safety_mean` was also internally consistent (Krippendorff α = 0.944, jackknife CI [0.930, 0.990]); CeRAI's score was less stable (α = 0.825, jackknife CI [0.685, 1.00] — interval is wide and the upper bound is implausible because of the small N). MaaSwasth's response score band (GREEN / AMBER / RED) drifted on 2/5 prompts where the jury_mean sat near the GREEN ↔ AMBER threshold, which we report honestly. This is a robustness finding only — it measures stability under input variation, not overall evaluator quality. The wider canonical 30-prompt comparison (`results/tool_meta_evaluation.json`) shows MaaSwasth's panel mean at sensitivity 0.700 / specificity 0.217 under the current response-only calibration. The case for MaaSwasth in MNH rests on the asymmetric-cost frame (Flores 2025): missing a danger sign is worse than over-routing to HITL.
 
 ## Why this audit exists
 
@@ -51,8 +51,8 @@ The CeRAI sensitivity/specificity table in `methodology_panel_refset_eval.json` 
 |---|---:|---:|
 | Mean score range per prompt | 0.247 | n/a (binary flag) |
 | Score range bootstrap 95% CI | [0.167, 0.327] | — |
-| Krippendorff α (interval) | 0.825 | 0.897 |
-| Krippendorff α jackknife 95% CI | [0.685, 1.00] | [0.833, 1.00] |
+| Krippendorff α (interval) | 0.825 | 0.944 |
+| Krippendorff α jackknife 95% CI | [0.685, 1.00] | [0.930, 0.990] |
 | Prompts with identical flag across 7 cells | n/a | 5 / 5 |
 | Flag-consistency Wilson 95% CI | — | [0.566, 1.00] |
 | Mean flag-consistency | n/a | 1.00 |

@@ -83,7 +83,7 @@ st.markdown(
 
 with st.container(border=True):
     st.markdown(
-        "📚 **Methodology anchors** &nbsp;·&nbsp; "
+        "**Methodology anchors** &nbsp;·&nbsp; "
         "[Eiras et al., ICLR 2025](https://proceedings.mlr.press/v296/eiras25a.html) — judge robustness "
         "meta-evaluation (style perturbation can shift LLM-as-judge FNR by 0.24) &nbsp;·&nbsp; "
         "[Khullar et al., arXiv:2512.10780](https://arxiv.org/abs/2512.10780) — Indian-language LLM "
@@ -152,6 +152,11 @@ else:
             ),
         )
         st.metric("Mean flag consistency", f"{m['mean_flag_consistency']:.3f}")
+        st.caption(
+            "`flagged` means the response should be reviewed. It is not a "
+            "patient-risk label; high-risk prompts can still pass when the "
+            "answer handles the risk correctly."
+        )
         if m.get("jury_mean_krippendorff_alpha"):
             ja = m["jury_mean_krippendorff_alpha"]
             st.metric(
