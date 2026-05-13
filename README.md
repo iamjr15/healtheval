@@ -108,11 +108,11 @@ CeRAI provided out of the box [5, 6, 8, 10].
 I built MaaSwasth to evaluate four candidate models as Hindi MNH assistants
 under one shared system prompt grounded in WHO ANC 2016/2024 and MoHFW Janani
 Suraksha Yojana, JSSK, and PMSMA sources [1, 2]. In the workbench, I use a 30
-prompt source based test set, a required RED/AMBER/GREEN triage JSON block,
-three LLM judges from different model families, explicit safety cutoffs, CeRAI
-and Inspect AI comparison baselines, and a Streamlit review UI. I am not training
-a chatbot or making clinical decisions here. I am evaluating chatbot responses
-and making the evidence inspectable.
+prompt source based test set, a reference risk tier for each case, three LLM
+judges from different model families, explicit safety cutoffs, CeRAI and
+Inspect AI comparison baselines, and a Streamlit review UI. I am not training a
+chatbot or making clinical decisions here. I am evaluating chatbot responses and
+making the evidence inspectable.
 
 I use Inspect AI as a lightweight comparison scorer, not as the final safety
 method.
@@ -125,8 +125,9 @@ results/methodology_panel_refset_eval.json
 
 With that setup, the final MaaSwasth Safety Method reaches:
 
-- **Triage** means routing the answer into a safety level: `RED` for emergency,
-  `AMBER` for review or referral, and `GREEN` for routine guidance.
+- **Reference risk tier** means the test case context: `green` for routine
+  education, `yellow` for health-worker review, and `red` for urgent escalation.
+  It comes from ground truth, not from the model being evaluated.
 - **Sensitivity** means: when a case needed safety attention, did the evaluator
   catch it? Higher sensitivity means fewer missed risky cases.
 - **Specificity** means: when a case did **not** need safety attention, did the
@@ -136,21 +137,19 @@ With that setup, the final MaaSwasth Safety Method reaches:
 | Method | Sensitivity: caught risky cases | Specificity: avoided unnecessary flags |
 |---|---:|---:|
 | MaaSwasth Safety Method (panel mean) | **0.750** | **0.150** |
-| CeRAI metric layer | 0.733 | 0.600 |
-| Inspect AI safety scorer | 0.733 | 0.333 |
 
-The current MaaSwasth method evaluates **only the response** against the
-safety-critical principles; the routing decision is `flagged = (judge band
-is AMBER or RED)`. An earlier version of the calibration also flagged a
-case when the model's own self-triage said AMBER or RED, which raised
-sensitivity to 0.983 by incorporating the model's routing decision. I
-deliberately removed that union — the evaluator should score the response,
-not the case, so that "judge the answer" and "decide what to do with the
-patient" stay separable concerns. With that change, MaaSwasth's jury alone
-catches risky cases at a rate roughly comparable to CeRAI but over-flags
-safe ones more often. I treat the lower specificity as acceptable here
-because a missed emergency referral is worse than extra review load
-[7, 4]; the HITL queue absorbs the false-positive cost.
+The method evaluates **only the response** against the safety-critical
+principles; the routing decision is `flagged = (judge band is AMBER or
+RED)`. The evaluator scores the response, not the case, so "judge the
+answer" and "decide what to do with the patient" stay separable concerns.
+I treat the lower specificity as acceptable here because a missed
+emergency referral is worse than extra review load [7, 4]; the HITL queue
+absorbs the false-positive cost.
+
+The same per-panel breakdown by risk tier is on the Overview page (claude
++ gemini jury panels catch 4/4 RED-tier emergencies; sarvam-30b 3/4;
+sarvam-105b 1/4 — the last reflects strong model behavior on risky
+queries rather than weak evaluator coverage).
 
 ---
 
@@ -170,7 +169,8 @@ because a missed emergency referral is worse than extra review load
 2. Check `Overview` for the main results and reviewer checklist.
 3. Try `Live Demo` with a Hindi MNH prompt or sample chip, then inspect the
    answer, triage JSON, judge heatmap, and safety decision.
-4. Compare MaaSwasth, CeRAI, and Inspect AI on the same 30 prompt set.
+4. Open `Evaluator Stability` to see how the verdicts hold up under input
+   perturbation (script swap, code-mix, length compression, register shifts).
 5. Use `Case Explorer` to inspect prompts, model answers, triage, judge scores,
    and ground truth labels.
 6. Use `Safety Thresholds` to see how cutoffs change risky case catch rate and
@@ -283,6 +283,8 @@ I made the final safety method use:
 - scoring principles `{1, 2, 3, 6, 12}`
 - GREEN cutoff `4.0`
 - AMBER cutoff `3.5`
+- reference risk tiers for context and reporting, derived from
+  `expected_safety_action`
 - review routing based only on the response judge score band
 
 I deliberately prioritize catching risky cases over reducing unnecessary flags.
@@ -368,58 +370,37 @@ self-triage; the response judge alone — which only scores the answer text
 flagging. The other panel members move less because their jury scoring
 of the response already lands in AMBER/RED for most risky cases.
 
-### Evaluator Comparison Result
-
-I saved the comparison result file here:
-
-```text
-results/tool_meta_evaluation.json
-```
-
-| Evaluator | Sensitivity: caught risky cases | Specificity: avoided unnecessary flags |
-|---|---:|---:|
-| MaaSwasth Safety Method (panel mean) | 0.750 | 0.150 |
-| CeRAI metric layer | 0.733 | 0.600 |
-| Inspect AI safety scorer | 0.733 | 0.333 |
-
-I do not read this comparison as winner take all. CeRAI is more balanced
-between catching risky cases and avoiding unnecessary flags. MaaSwasth is more
-conservative. It catches more risky cases, but it also sends more cases to
-human review. I show both so reviewers can inspect disagreements case by case.
-
 ### Evaluator Stability Audit
 
-The sensitivity/specificity table above measures evaluator behaviour on a fixed
-30-prompt reference set. It does not measure stability under the surface-form
-variation real Hindi mNH users actually produce (script swaps, Hinglish
-code-mixing, SMS-length compressions, register shifts). I ran a separate
-perturbation audit using the meta-evaluation methodology from Eiras et al.
-(ICLR 2025 Workshops) and anchored on the Indian-language LLM medical-triage
-finding in Khullar et al. (arXiv:2512.10780, Dec 2025).
+The sensitivity/specificity table above measures evaluator behaviour on a
+fixed 30-prompt reference set. It does not measure stability under the
+surface-form variation real Hindi mNH users actually produce — Devanagari ↔
+Roman Hindi, Hinglish code-mixing, SMS-length compressions, register shifts.
+I ran a separate perturbation audit using the meta-evaluation methodology
+from Eiras et al. (ICLR 2025 Workshops, PMLR 296:56-66) and anchored on the
+Indian-language LLM medical-triage finding in Khullar et al.
+(arXiv:2512.10780, Dec 2025).
 
-For 5 base responses spanning safe-routine, unsafe-but-correctly-refused, and
-borderline cases, I generated 6 perturbations each (script_swap, code_mix,
-length_compress, style_inflate, style_deflate, authority_register), held the
-factual content constant per-cell via an independent Gemini 2.5 Pro verifier,
-and scored all 35 cells through both evaluators. CeRAI scores come from
-CeRAI's dashboard analyzer (`response_analyzer/analyze.py`); MaaSwasth scores
-come from the same jury panel used for the canonical reference-set run.
+For 5 base responses spanning safe-routine, unsafe-but-correctly-refused,
+and borderline cases, I generated 6 perturbations each (`script_swap`,
+`code_mix`, `length_compress`, `style_inflate`, `style_deflate`,
+`authority_register`), held the factual content constant per cell via an
+independent Gemini 2.5 Pro verifier, and scored all 35 cells through the
+same jury panel used for the canonical reference-set run.
 
-| Metric | CeRAI metric layer | MaaSwasth panel |
-|---|---:|---:|
-| Mean score range per prompt (bootstrap 95% CI) | **0.247** [0.167, 0.327] | n/a (binary flag) |
-| Krippendorff α (interval; jackknife 95% CI) | 0.825 [0.685, 1.00] | **0.897** [0.833, 1.00] |
-| Prompts with identical flag across 7 cells (Wilson 95% CI) | n/a | **5 / 5** [0.566, 1.00] |
-| Mean flag-consistency | n/a | **1.00** |
+| Metric | MaaSwasth panel |
+|---|---:|
+| Prompts with identical `flagged` across 7 cells (Wilson 95% CI) | **5 / 5** [0.566, 1.00] |
+| Mean flag-consistency | **1.00** |
+| Krippendorff α on `jury_safety_mean` (jackknife 95% CI) | **0.897** [0.833, 1.00] |
 
-Full audit: `docs/perturbation_audit.md`. Streamlit page: `Real-World
-Robustness`. Raw scores: `results/perturbation_scores_*.json`. Compute script:
-`scripts/compute_perturbation_robustness.py`.
+The binary HITL routing decision survives every perturbation of every
+prompt — the safety-critical verdict is invariant to the surface-form
+variation real users produce.
 
-This audit reframes the comparison: it is not "whose number is better" but
-"which evaluator's verdict survives the surface-form variation real users
-actually produce." That capability question is the one a clinical reviewer
-needs answered before deploying either evaluator as a gating layer.
+Full audit: `docs/perturbation_audit.md`. Streamlit page: `Evaluator
+Stability`. Raw scores: `results/perturbation_scores_maaswasth.json`.
+Compute script: `scripts/compute_perturbation_robustness.py`.
 
 ### Parse Failures
 

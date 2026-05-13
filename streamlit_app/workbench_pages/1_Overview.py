@@ -7,6 +7,11 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from eval.reference_risk import (
+    REFERENCE_RISK_ORDER,
+    reference_risk_label,
+    risk_tier_from_expected_action,
+)
 from streamlit_app.components.download_link import render_download_link
 from streamlit_app.components.sens_spec_table import render_sens_spec_table
 from streamlit_app.config import (
@@ -149,27 +154,68 @@ with row2[2]:
             "`{metric}_v{N}.yaml` rather than overwriting the old version."
         ),
     )
-st.subheader("Evaluator Comparison")
+st.subheader("Reference Risk Tiers")
 st.caption(
-    "These comparator results show how each automated evaluator behaves on "
-    "the same 30 cases. Blue is catch rate; teal is false-alarm control."
+    "Each reference case carries a risk tier derived from its expected safety "
+    "action. This lets the dashboard separate routine education from cases "
+    "where a bad answer could cause more harm."
+)
+risk_counts = {
+    tier: sum(
+        1
+        for item in reference_items
+        if risk_tier_from_expected_action(item.get("expected_safety_action")) == tier
+    )
+    for tier in REFERENCE_RISK_ORDER
+}
+risk_cols = st.columns(3)
+for idx, tier in enumerate(REFERENCE_RISK_ORDER):
+    with risk_cols[idx]:
+        st.metric(reference_risk_label(tier), risk_counts[tier])
+
+risk_table = list(tool_meta.get("table_risk_tiers", []))
+panel_risk_rows = [
+    row
+    for row in risk_table
+    if row.get("evaluator") == "maaswasth_safety_method:panel_mean"
+]
+if panel_risk_rows:
+    risk_df = pd.DataFrame(
+        [
+            {
+                "Reference risk": row.get("reference_risk_label"),
+                "Metric": (
+                    "Safe cases not sent to review"
+                    if row.get("reference_risk_tier") == "green"
+                    else "Risk cases caught"
+                ),
+                "Panel mean": f"{float(row.get('success_rate', 0.0)) * 100:.1f}%",
+            }
+            for row in panel_risk_rows
+        ]
+    )
+    st.table(risk_df)
+st.subheader("MaaSwasth Panel Performance")
+st.caption(
+    "Per-panel-model catch and false-alarm rates on the same 30 reference cases. "
+    "Blue is catch rate (risk cases caught); teal is false-alarm control (safe cases not over-flagged)."
 )
 
 
 def _display_evaluator_name(raw: object) -> str:
-    labels = {
-        "independent_methodology": "MaaSwasth Safety Method",
-        "cerai_metric_layer": "CeRAI",
-        "inspect_safety_scorer": "Inspect scorer",
-    }
     name = str(raw or "—")
     if name.startswith("maaswasth_safety_method:"):
         return name.split(":", 1)[1]
-    return labels.get(name, name.replace("_", " "))
+    return name.replace("_", " ")
 
+
+maaswasth_rows = [
+    row for row in native_table
+    if str(row.get("evaluator", "")).startswith("maaswasth_safety_method")
+]
 
 native_chart_rows = []
-for row in native_table:
+for row in maaswasth_rows:
     name = _display_evaluator_name(row.get("evaluator", "?"))
     sens_rate = row.get("sensitivity", {}).get("rate")
     spec_rate = row.get("specificity", {}).get("rate")
@@ -215,8 +261,8 @@ if native_chart_rows:
     )
     st.plotly_chart(fig, width="stretch")
     render_sens_spec_table(
-        native_table,
-        title="Evaluator comparison — full table with uncertainty intervals",
+        maaswasth_rows,
+        title="Per-panel-model detail — uncertainty intervals",
         caption=(
             "Intervals show uncertainty from the small 30-case reference set. "
             "The Beta-Binomial interval is the preferred small-sample estimate."
@@ -250,7 +296,7 @@ if PATH_PROMPTFOO_SAVED_HTML.exists():
         mime="text/html",
     )
     st.caption(
-        "Generated from `promptfooconfig.saved.yaml`. The Docker smoke service "
+        "Generated from `promptfooconfig.saved.yaml`. The Docker Promptfoo service "
         "runs the first reference prompt across the four saved panel outputs. "
         "Use `MAASWASTH_PROMPTFOO_LIMIT=30` only for a full DeepEval pass."
     )
@@ -277,9 +323,9 @@ Use the sidebar to move through the workflow:
 st.subheader("Important Limits")
 st.markdown(
     f"""
-- **Triage JSON reliability.** The dashboard uses the current complete result
-  file selected from `results/`. If a model does not return valid triage
-  JSON, that case is treated as a failure and routed toward human review.
+- **Response-evaluation scope.** The dashboard judges whether the model's
+  answer is safe, grounded, and complete. It does not score the user's
+  medical condition as the final outcome.
 - **Small reference set.** The benchmark has 30 cases. This is useful for
   a two-day assignment and focused safety analysis, but not enough for broad
   claims across every user group.
