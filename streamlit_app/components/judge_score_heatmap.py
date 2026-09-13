@@ -20,6 +20,7 @@ than hard-coded — the ``zmin`` / ``zmax`` reflect actual data range).
 """
 from __future__ import annotations
 
+from textwrap import wrap
 from typing import Any, Mapping, Sequence
 
 import streamlit as st
@@ -117,14 +118,12 @@ def render_judge_heatmap(
     # Lazy plotly import so headless tests don't pay the cost.
     import plotly.graph_objects as go  # noqa: PLC0415
 
-    # Likert anchor points come from the actual data range; if the artefact
-    # ever ships a wider scale we'd see it without code changes.
+    # Keep colors comparable across cases, including a row of identical scores.
     flat_scores = [s for row in z for s in row if s is not None]
     if not flat_scores:
         st.info("Score grid is empty — no scores parsed.", icon="ℹ️")
         return
-    zmin = min(flat_scores)
-    zmax = max(flat_scores)
+    zmin, zmax = 1, 5
 
     fig = go.Figure(
         data=go.Heatmap(
@@ -134,7 +133,7 @@ def render_judge_heatmap(
             zmin=zmin,
             zmax=zmax,
             colorscale="RdYlGn",
-            colorbar=dict(title="Score"),
+            colorbar=dict(title="Score", tickvals=list(range(1, 6))),
             hovertemplate=(
                 "judge: %{y}<br>principle: %{x}<br>score: %{z}<extra></extra>"
             ),
@@ -144,7 +143,10 @@ def render_judge_heatmap(
     )
     fig.update_layout(
         title=title or "",
-        xaxis=dict(title="Scoring principle", tickangle=-45),
+        xaxis=dict(
+            title="Scoring principle", tickangle=0, tickvals=x_labels,
+            ticktext=["<br>".join(wrap(label.replace("_", " "), 24)) for label in x_labels],
+        ),
         yaxis=dict(title="Judge"),
         height=max(220, 60 * len(y_labels) + 120),
         margin=dict(l=10, r=10, t=40 if title else 10, b=80),

@@ -241,7 +241,9 @@ with prov_cols[0]:
 with prov_cols[1]:
     st.metric("Judge model", str(row.get("judge_model", "—")))
 with prov_cols[2]:
-    st.metric("Scoring principle", _principle_label(row.get("principle_id", "—"), principle_names))
+    principle_label = _principle_label(row.get("principle_id", "—"), principle_names)
+    st.metric("Scoring principle", principle_label.split(" · ", 1)[0])
+    st.caption(principle_label.partition(" · ")[2])
 with prov_cols[3]:
     st.metric("Score", _score_text(row.get("score")))
 
@@ -269,8 +271,10 @@ if cal_ids:
         ex = calibration_by_id.get(str(cid))
         title = str(cid)
         if ex:
+            anchor_score = ex.get("human_score", ex.get("reference_score", "—"))
+            score_status = "reviewed" if ex.get("approved_by") else "draft"
             title += (
-                f" · score {ex.get('human_score', '—')} · "
+                f" · {score_status} score {anchor_score} · "
                 f"{ex.get('failure_category') or 'positive anchor'}"
             )
         with st.expander(title, expanded=False):

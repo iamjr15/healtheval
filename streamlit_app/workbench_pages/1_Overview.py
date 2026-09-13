@@ -237,36 +237,21 @@ with lane_cols[0]:
             "Source: the model's parsed `triage_label` and `referral_action`. "
             "This is the closest dashboard view to danger-sign detection."
         )
-        risk_metric_cols = st.columns(3)
-        with risk_metric_cols[0]:
-            st.metric(
-                "Triage label accuracy",
-                _format_rate(
-                    patient_risk_counts["triage_label_ok"],
-                    patient_risk_counts["n"],
-                ),
-            )
-        with risk_metric_cols[1]:
-            st.metric(
-                "RED recall",
-                _format_rate(
-                    patient_risk_counts["red_detected"],
-                    patient_risk_counts["red_expected"],
-                ),
-                help="Among reference RED cases, how often the model emitted RED.",
-            )
-        with risk_metric_cols[2]:
-            st.metric(
-                "Urgent emergency action",
-                _format_rate(
-                    patient_risk_counts["urgent_emergency_action"],
-                    patient_risk_counts["urgent_expected"],
-                ),
-                help=(
-                    "Among urgent reference cases, how often the model emitted "
-                    "`refer_emergency`."
-                ),
-            )
+        risk_metrics = [
+            ("Triage accuracy", "triage_label_ok", "n", "responses",
+             "How often the model's label matches the draft reference label."),
+            ("RED recall", "red_detected", "red_expected", "RED cases",
+             "Among reference RED cases, how often the model emitted RED."),
+            ("Emergency action", "urgent_emergency_action", "urgent_expected", "urgent cases",
+             "Among urgent reference cases, how often the model emitted refer_emergency."),
+        ]
+        for col, (label, numerator, denominator, unit, help_text) in zip(
+            st.columns(3), risk_metrics
+        ):
+            k, n = patient_risk_counts[numerator], patient_risk_counts[denominator]
+            with col:
+                st.metric(label, _pct_or_dash(k / n if n else None), help=help_text)
+                st.caption(f"{k}/{n} {unit}" if n else "No measured responses")
         st.caption(
             "These metrics do not judge answer quality. They only compare the "
             "structured triage block to the reference labels."

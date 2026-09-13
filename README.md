@@ -18,9 +18,15 @@ software checks. The datasets and scoring anchors are **AI-authored synthetic
 drafts pending clinical and Hindi-language review**. They contain no patient
 records. A good score here does not establish that a chatbot is clinically safe.
 
-[Start locally](#start-locally) · [Methodology](#evaluation-methodology) ·
+[Screenshots](#a-visual-tour) · [Start locally](#start-locally) · [Methodology](#evaluation-methodology) ·
 [Datasets](#datasets-and-source-grounding) · [Run evaluations](#run-evaluations) ·
 [Measured results](#measured-results-and-validation) · [Limitations](#limitations)
+
+[![HealthEval overview: patient-triage recognition, answer-review routing, and the current evidence inventory](docs/screenshots/overview.png)](docs/screenshots/overview.png)
+
+*The workbench keeps patient urgency and answer quality in separate panels.
+The counts shown come from the included 90-response benchmark. Click any
+screenshot to open the full-resolution image.*
 
 ## What you can do with it
 
@@ -36,6 +42,21 @@ records. A good score here does not establish that a chatbot is clinically safe.
 The intended users are developers, evaluators and reviewers studying health
 chatbot behavior. The workbench helps them inspect evidence and identify failure
 modes before considering a separate clinical validation process.
+
+## A visual tour
+
+Explore reference questions, scoring evidence and human review.
+These are actual captures of the local application using the committed synthetic
+cases and measured provider outputs. The screenshots use the reduced jury
+documented below; they do not represent completed clinical review.
+
+| Explore | What the screenshot helps you understand |
+|---|---|
+| [Reference case](#reference-case-preview) | The question, expected action, danger signs and source-informed checklist. |
+| [Response and scoring](#response-review-preview) | The actual Hindi answer, its triage JSON and the independent judge's scores. |
+| [Human review](#human-review-preview) | How a flagged answer is presented for a person's decision. |
+| [Audit trail](#audit-trace-preview) | How scores link back to individual judge-call records. |
+| [Browse all cases](#case-explorer-preview) | How to find cases by model, risk and review status. |
 
 ## One example: urgency and answer quality are different
 
@@ -56,6 +77,14 @@ make the chatbot's answer unsafe. Conversely, valid JSON or a correct triage
 label does not prove that the explanation is accurate. Review both the structured
 fields and the actual answer. This example illustrates the method; it is not an
 additional measured benchmark result.
+
+<a id="response-review-preview"></a>
+
+[![Saved ref-003 response: the Hindi emergency answer, RED triage JSON, five judge scores, and a GREEN answer-review decision](docs/screenshots/response-review.png)](docs/screenshots/response-review.png)
+
+*Actual saved result for `ref-003`, answered by `sarvam-105b-conversations` and
+judged by Gemini. Read the RED patient-triage label separately from the GREEN
+answer-review band. The score reflects this rubric and judge, not clinical certification.*
 
 ## How the system works
 
@@ -258,6 +287,30 @@ include [WHO diabetes guidance](https://www.who.int/news-room/fact-sheets/detail
 [CDC antibiotic safety](https://www.cdc.gov/antibiotic-use/about/index.html), and
 [India's Emergency Response Support System](https://112.gov.in/).
 
+<a id="reference-case-preview"></a>
+
+<details>
+<summary><strong>See inside a reference case: expectations before scoring</strong></summary>
+
+[![Reference case ref-003 showing the urgent action, RED risk, Roman Hindi question, Hindi factual checklist, required danger signs and source link](docs/screenshots/reference-case.png)](docs/screenshots/reference-case.png)
+
+*The case definition makes the expected handling inspectable. Its source context
+is explicitly marked as paraphrased, with clinical review pending.*
+
+</details>
+
+<a id="case-explorer-preview"></a>
+
+<details>
+<summary><strong>Browse the benchmark: models, risk tiers and case filters</strong></summary>
+
+[![Case Explorer displaying the 30-case benchmark, model selection, risk filters, and the Open Case Detail control](docs/screenshots/case-explorer.png)](docs/screenshots/case-explorer.png)
+
+*Choose a model and case, then open the detail view. Optional comparison columns
+may have no measurement; that absence is not evidence that an answer passed.*
+
+</details>
+
 ## Start locally
 
 ### Requirements
@@ -449,6 +502,19 @@ for a completed current-benchmark artifact, with further validation downstream.
 Stale or absent measurements are shown as unavailable. Older-domain measurements
 are not relabeled as current HealthEval results.
 
+<a id="audit-trace-preview"></a>
+
+<details>
+<summary><strong>Inspect the audit trail behind a score</strong></summary>
+
+[![Audit Trace showing recorded judge calls and the selected call's scoring evidence](docs/screenshots/audit-trace.png)](docs/screenshots/audit-trace.png)
+
+*Trace records connect a score to its case, model, principle, parser result and
+judge output. They support inspection and debugging; repeated calls can appear
+when a run is retried.*
+
+</details>
+
 ## Using the workbench
 
 | Page | What to inspect |
@@ -476,7 +542,16 @@ operator-supplied endpoint and admin token; this repository does not ship that
 persistence backend. Marking an example for calibration does not fine-tune a
 model or automatically establish clinician approval.
 
-![HealthEval workbench showing dataset coverage and measured evidence](docs/qa/healtheval-overview.png)
+<a id="human-review-preview"></a>
+
+[![Human review form for flagged Sarvam 105B case ref-029, with routing reasons, reference risk, model response and reviewer decision controls](docs/screenshots/human-review.png)](docs/screenshots/human-review.png)
+
+*`ref-029` is one of the two answers flagged in the included Sarvam 105B run.
+The form is shown before submission. No reviewer identity, approval or clinical
+judgment was invented for this screenshot.*
+
+Capture details and refresh instructions are in
+[the screenshot guide](docs/screenshots/README.md).
 
 ## Optional integrations
 
