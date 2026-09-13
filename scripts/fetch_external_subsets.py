@@ -1,19 +1,7 @@
-"""Fetch + verify the external source CSVs that ground the hand-translated
-Hindi subsets in `data/equity_subset_hindi.yaml` + `data/safety_subset_hindi.yaml`.
+"""Optionally download pinned external comparator datasets for separate research.
 
-Run from repo root:
-
-    python scripts/fetch_external_subsets.py
-
-Per the reproducibility gate (clone-and-run reviewer requirement) + the translated-subset provenance check + Codex R6.
-This script is the canonical reproducibility hook: pinned SHA-256 hashes
-detect upstream drift, and the subset YAMLs are then validated against the
-Pydantic schemas in `data/schemas.py`.
-
-The script does NOT regenerate the YAMLs themselves — those carry the
-candidate's hand-curated 60 + 30 selections + Claude LLM-draft Hindi
-translations and are versioned in git. Re-fetching only the source CSVs
-lets reviewers verify provenance.
+These files do not generate or validate HealthEval's AI-authored challenge sets.
+Rebuild HealthEval datasets with scripts/build_health_assets.py.
 """
 from __future__ import annotations
 
@@ -94,8 +82,8 @@ def validate_yaml_subsets() -> tuple[bool, list[str]]:
 
     ok = True
     for path, cls in [
-        (ROOT / "data" / "equity_subset_hindi.yaml", EquitySubset),
-        (ROOT / "data" / "safety_subset_hindi.yaml", SafetySubset),
+        (ROOT / "data" / "equity_challenges_hindi.yaml", EquitySubset),
+        (ROOT / "data" / "safety_challenges_hindi.yaml", SafetySubset),
     ]:
         if not path.exists():
             ok = False
@@ -121,10 +109,10 @@ def manifest() -> list[str]:
         return ["  (manifest skipped — missing pyyaml or data.schemas)"]
     out: list[str] = []
     eq = EquitySubset.model_validate(
-        yaml.safe_load((ROOT / "data" / "equity_subset_hindi.yaml").read_text("utf-8"))
+        yaml.safe_load((ROOT / "data" / "equity_challenges_hindi.yaml").read_text("utf-8"))
     )
     sf = SafetySubset.model_validate(
-        yaml.safe_load((ROOT / "data" / "safety_subset_hindi.yaml").read_text("utf-8"))
+        yaml.safe_load((ROOT / "data" / "safety_challenges_hindi.yaml").read_text("utf-8"))
     )
     out.append(f"  EquitySubset: {len(eq.items)} items")
     out.append(f"    by category:        {dict(Counter(i.category.value for i in eq.items))}")

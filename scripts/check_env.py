@@ -15,7 +15,7 @@ REQUIRED = {
 }
 
 BUDGET_KEYS = {
-    "BUDGET_CENTS_PER_DAY_SARVAM_30B",
+    "BUDGET_CENTS_PER_DAY_SARVAM_CONVERSATIONS",
     "BUDGET_CENTS_PER_DAY_SARVAM_105B",
     "BUDGET_CENTS_PER_DAY_CLAUDE_SONNET_46",
     "BUDGET_CENTS_PER_DAY_GEMINI_25_PRO",
@@ -89,6 +89,7 @@ def main(argv: list[str]) -> int:
         print(f"Environment check failed: {exc}", file=sys.stderr)
         return 1
 
+    values.setdefault("GOOGLE_API_KEY", values.get("GEMINI_API_KEY", ""))
     errors: list[str] = []
     warnings: list[str] = []
     for key, purpose in REQUIRED.items():

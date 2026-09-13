@@ -1,4 +1,4 @@
-"""Promptfoo provider over the saved MaaSwasth reference-set responses.
+"""Promptfoo provider over the saved HealthEval reference-set responses.
 
 Promptfoo expects provider functions to accept ``(prompt, options, context)``
 and return ``{"output": ...}``.  This provider avoids re-calling the panel
@@ -9,6 +9,7 @@ output with the same prompt metadata.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -16,9 +17,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RESULTS_PATH = REPO_ROOT / "results" / "methodology_panel_refset_eval.json"
 
 _CACHE: dict[Path, dict[str, Mapping[str, Any]]] = {}
+_LEADING_THINK_RE = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+_TRIAGE_BLOCK_RE = re.compile(
+    r"```(?:json)?\s*\{.*?\"triage_label\".*?\}\s*```\s*",
+    re.DOTALL,
+)
+
+
+def _visible_response_text(response: str) -> str:
+    text = _LEADING_THINK_RE.sub("", response or "", count=1)
+    return _TRIAGE_BLOCK_RE.sub("", text, count=1).strip()
 
 
 def _load_rows(path: Path) -> dict[str, Mapping[str, Any]]:
+    from eval.benchmark import require_current_benchmark
+    artifact = json.loads(path.read_text(encoding="utf-8"))
+    require_current_benchmark(artifact, label=str(path))
+    _CACHE.pop(path, None)
     if path not in _CACHE:
         artifact = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(artifact.get("models"), dict):
@@ -59,12 +74,11 @@ def call_api(prompt: str, options: dict[str, Any], context: dict[str, Any]) -> d
         }
 
     return {
-        "output": str(row.get("response") or ""),
+        "output": _visible_response_text(str(row.get("response") or "")),
         "metadata": {
             "prompt_id": prompt_id,
             "model_id": model_id or row.get("model_id"),
-            "parse_succeeded": bool(row.get("parse_succeeded")),
             "decision": row.get("decision") or {},
-            "source_results_path": str(path.relative_to(REPO_ROOT)),
+            "source_results_path": str(path.resolve()),
         },
     }

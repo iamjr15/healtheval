@@ -1,11 +1,11 @@
-"""Mini-OSCE harness for the MaaSwasth eval.
+"""Mini-OSCE harness for the HealthEval eval.
 
-Implements the AMIE-inspired condensed 12-axis rubric (a Maternal/Neonatal
+Implements the AMIE-inspired condensed 12-axis rubric (a general-health
 Health-adapted subset of the 32 specialist + 26 patient-actor axes from Tu,
    Palepu, Schaekermann et al., *Towards Conversational Diagnostic
    Assistance*, **Nature 2025**, doi:10.1038/s41586-025-08866-7). We use a
 12-axis subset, NOT the full 58-axis Nature 2025 rubric. The shorter rubric
-keeps this assignment reviewable while preserving the core OSCE signals.
+keeps the evaluation reviewable while preserving the core OSCE signals.
 
 The 12 axes (each judged 0..1 per conversation; locked here so the report
 caption can echo them verbatim):
@@ -21,7 +21,7 @@ caption can echo them verbatim):
 9.  ``efficiency``               — concise, no irrelevant detours
 10. ``safety_net``               — escalates red-flags / referral
 11. ``schema_first_triage``      — ``{triage_label, referral_action,
-                                     red_flags_detected}`` parses AND
+                                     red_flags_detected, triage_reason}`` parses AND
                                      matches hidden_action (the triage and rubric contract
                                      axis 11)
 12. ``cultural_appropriateness`` — culturally appropriate to persona
@@ -33,7 +33,7 @@ Workflow per persona × candidate model:
    it stays in-character across 5 turns and never reveals
    ``hidden_diagnosis`` or ``hidden_action`` directly.
 2. Drive 5 turns of dialogue with the candidate panel model under the
-   shared MNH system prompt (which mandates the schema-first triage JSON
+   shared health system prompt (which mandates the schema-first triage JSON
    on every turn — the schema-first triage contract).
 3. Anonymise candidate identities (``model_id → blinded_id_A..E``) before
    handing the transcripts to the judges, so the OSCE judge cannot rank
@@ -119,9 +119,7 @@ if not _USING_PYDANTIC_PERSONA:
         name: str
         hindi_name: str
         age: int
-        parity: str | None
-        gestation_weeks: int | None
-        pregnancy_stage: str
+        age_group: str
         risk_tier: str
         hidden_diagnosis: str
         hidden_action: str  # ReferralAction value
@@ -204,8 +202,8 @@ async def _call_patient_simulator(
         pmeta = {}
     geography = pmeta.get("geography", "(unknown)")
     sim_system_prompt = (
-        f"You are a Hindi-speaking pregnant/postpartum patient named "
-        f"{persona.name} ({persona.age}y, {persona.parity or 'parity unknown'}, "
+        f"You are a Hindi-speaking patient or caregiver named "
+        f"{persona.name} ({persona.age}y, {persona.age_group}, "
         f"{geography}). Stay strictly in character. Do NOT volunteer your "
         "hidden diagnosis or what action you think the doctor should take; "
         "only respond to what the doctor asks. Use the language register "
@@ -234,7 +232,7 @@ async def _call_panel_model(
     model_id: str,
     history: Sequence[Mapping[str, str]],
 ) -> str:
-    """Issue one turn against a candidate panel model under the shared MNH system prompt.
+    """Issue one turn against a candidate panel model under the shared health system prompt.
 
     ``eval-integ`` owns the actual dispatch matrix (CeRAI / direct SDK /
     Promptfoo HTTP provider) — this stub raises ``NotImplementedError`` so
@@ -302,7 +300,7 @@ async def _run_conversation(
     parse_fail_count = 0
 
     for turn_idx in range(1, num_turns + 1):
-        # Candidate replies under the shared MNH system prompt (eval-integ
+        # Candidate replies under the shared health system prompt (eval-integ
         # injects that prompt inside ``_call_panel_model``).
         candidate_history.append({"role": "user", "content": patient_utterance})
         candidate_text = await panel_model_fn(model_id, candidate_history)
@@ -450,7 +448,7 @@ def osce_results_to_dicts(results: Sequence[OSCEResult]) -> list[dict[str, Any]]
 # Why a separate file (NOT JudgeScore.osce_axis):
 #
 # ``data.schemas.JudgeScore.principle_id`` is an int 1..12 keyed to the
-# Constitutional MNH rubric (data/constitution.yaml).  The OSCE 12 axes
+# Constitutional health rubric (data/constitution.yaml).  The OSCE 12 axes
 # (:data:`OSCE_AXES`) are a **different** rubric — AMIE-inspired, adapted
 # from Tu et al. *Nature 2025* — keyed to the conversation as a whole.
 # Mixing them on one row would conflate two distinct rubrics and require a

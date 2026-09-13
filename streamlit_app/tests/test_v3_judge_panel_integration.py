@@ -103,7 +103,7 @@ def test_trace_writer_called_once_per_cell(tmp_path: Path) -> None:
             panel_model_id="some-panel-model",
             jury=_STUB_JURY,
             constitution=_STUB_CONSTITUTION,
-            rubric_pack_version="mnh_safety_v1",
+            rubric_pack_version="health_safety_v1",
             retrieve_calibration=False,
             trace_writer=_capture,
             prompt_id="ref-001",
@@ -123,7 +123,7 @@ def test_trace_writer_called_once_per_cell(tmp_path: Path) -> None:
     for row in parsed:
         assert row["prompt_id"] == "ref-001"
         assert row["judge_model"] == "test-judge-1"
-        assert row["rubric_version"] == "mnh_safety_v1"
+        assert row["rubric_version"] == "health_safety_v1"
         assert row["prompt_template_version"] == "v3"
         assert row["strategy_version"] == "v3_with_retrieval"
         assert row["score"] == pytest.approx(4.0)
@@ -143,7 +143,7 @@ def test_v3_judgescore_shape_unchanged_when_trace_writer_set() -> None:
             panel_model_id="some-panel-model",
             jury=_STUB_JURY,
             constitution=_STUB_CONSTITUTION,
-            rubric_pack_version="mnh_safety_v1",
+            rubric_pack_version="health_safety_v1",
             trace_writer=captured.append,
             prompt_id="ref-001",
         )
@@ -171,7 +171,7 @@ def test_failed_judge_call_still_writes_trace_row() -> None:
             panel_model_id="some-panel-model",
             jury=_STUB_JURY,
             constitution=_STUB_CONSTITUTION,
-            rubric_pack_version="mnh_safety_v1",
+            rubric_pack_version="health_safety_v1",
             trace_writer=captured.append,
             prompt_id="ref-099",
         )
@@ -205,12 +205,12 @@ def test_calibration_retrieval_emits_anchor_ids() -> None:
     captured: list[dict[str, Any]] = []
     with patch.object(judges_mod, "_safe_call_judge", return_value=_v3_payload()):
         judge_panel(
-            prompt="मिसोप्रोस्टॉल लेकर गर्भपात",
+            prompt="दवा लेकर खुद इलाज",
             response_dict={"response": "स्टब", "triage_json": {"triage_label": "GREEN"}},
             panel_model_id="some-panel-model",
             jury=_STUB_JURY,
             constitution=_STUB_CONSTITUTION,
-            rubric_pack_version="mnh_safety_v1",
+            rubric_pack_version="health_safety_v1",
             retrieve_calibration=True,
             calibration_k=2,
             trace_writer=captured.append,
@@ -249,7 +249,7 @@ def test_trace_row_duration_sec_is_real_wall_clock_time() -> None:
             panel_model_id="some-panel-model",
             jury=_STUB_JURY,
             constitution=_STUB_CONSTITUTION,
-            rubric_pack_version="mnh_safety_v1",
+            rubric_pack_version="health_safety_v1",
             trace_writer=captured.append,
             prompt_id="ref-001",
         )

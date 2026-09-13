@@ -6,13 +6,16 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from eval.benchmark import benchmark_metadata, require_current_benchmark
+from eval.final_method import final_safety_method_config
+from .config import RESULTS_DIR
 
 from .canonical_selector import select_complete_methodology_artifact
 from .config import (
     JSONL_CACHE_TTL_SECONDS,
     PATH_BUDGET_TODAY_JSONL,
     PATH_CALIBRATION_EXAMPLES,
-    PATH_CERAI,
+    PATH_CERAI_DB_SCORES,
     PATH_CONSTITUTION,
     PATH_HITL_REVIEWS_JSONL,
     PATH_INSPECT,
@@ -91,10 +94,12 @@ def load_methodology_artifact() -> tuple[MethodologyArtifact, Path, str]:
     """
     selected = select_complete_methodology_artifact()
     if selected is None:
-        raise FileNotFoundError(
-            "No complete methodology artefact found — "
-            "did the v1 backup get deleted?"
-        )
+        return cast(MethodologyArtifact, {
+            **benchmark_metadata(), "status": "not_run", "rows": [], "models": {},
+            "panel_models": [], "jury": [], "n_prompts_done": 0,
+            "n_prompts_total": 0, "calibration": final_safety_method_config(),
+            "evaluator_outputs": {},
+        }), RESULTS_DIR / "methodology_panel_refset_eval.json", ""
     artefact = cast(
         MethodologyArtifact,
         _read_json(_path_str(selected), _mtime(selected)),
@@ -103,20 +108,25 @@ def load_methodology_artifact() -> tuple[MethodologyArtifact, Path, str]:
 
 
 def load_tool_meta_evaluation() -> ToolMetaArtifact:
+    if not PATH_TOOL_META.exists() or select_complete_methodology_artifact() is None:
+        return cast(ToolMetaArtifact, {"table_final_method": [], "table_panel_models": [], "table_native": [], "table_risk_tiers": []})
     return cast(
         ToolMetaArtifact,
         _read_json(_path_str(PATH_TOOL_META), _mtime(PATH_TOOL_META)),
     )
 
 
-def load_cerai_metrics() -> CeRaiOrInspectArtifact:
-    return cast(
-        CeRaiOrInspectArtifact,
-        _read_json(_path_str(PATH_CERAI), _mtime(PATH_CERAI)),
-    )
+def load_cerai_db_scores() -> dict[str, Any]:
+    if not PATH_CERAI_DB_SCORES.exists():
+        return {}
+    artifact = _read_json(_path_str(PATH_CERAI_DB_SCORES), _mtime(PATH_CERAI_DB_SCORES))
+    require_current_benchmark(artifact, label="CeRAI scores")
+    return artifact
 
 
 def load_inspect_safety() -> CeRaiOrInspectArtifact:
+    if not PATH_INSPECT.exists():
+        return cast(CeRaiOrInspectArtifact, {"evaluator_outputs": {}})
     return cast(
         CeRaiOrInspectArtifact,
         _read_json(_path_str(PATH_INSPECT), _mtime(PATH_INSPECT)),
@@ -268,11 +278,6 @@ def load_tool_meta() -> ToolMetaArtifact:
     return load_tool_meta_evaluation()
 
 
-def load_cerai() -> CeRaiOrInspectArtifact:
-    """Alias for :func:`load_cerai_metrics`."""
-    return load_cerai_metrics()
-
-
 def load_inspect() -> CeRaiOrInspectArtifact:
     """Alias for :func:`load_inspect_safety`."""
     return load_inspect_safety()
@@ -318,7 +323,7 @@ def load_jury_cells_by_prompt() -> dict[str, list[JudgeScoreRow]]:
 __all__ = [
     "load_methodology_artifact",
     "load_tool_meta_evaluation",
-    "load_cerai_metrics",
+    "load_cerai_db_scores",
     "load_inspect_safety",
     "load_reference_set",
     "load_constitution",
@@ -333,7 +338,6 @@ __all__ = [
     "methodology_model_ids",
     "methodology_for_model",
     "load_tool_meta",
-    "load_cerai",
     "load_inspect",
     "load_calibration_examples",
     "load_rubric_packs",

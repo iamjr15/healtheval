@@ -4,12 +4,12 @@ Mirrors the offline ``scripts/run_panel_refset_eval.py`` flow at
 single-prompt granularity:
 
 1. Send the user's Hindi prompt to the selected panel model with the shared
-   system prompt loaded from ``data/system_prompt_mnh.yaml``.
+   system prompt loaded from ``data/system_prompt_health.yaml``.
 2. Parse the schema-first triage block via
    ``eval.judges.parse_triage_response``.
 3. Score the response with the configured cross-family jury, with
    self-judging avoidance applied when the target model is also a judge.
-4. Aggregate the jury into the single final MaaSwasth Safety Method
+4. Aggregate the jury into the single final HealthEval response-evaluation
    decision used by the saved n=30 x panel evidence.
 
 **Critical correctness (per the page-builder-B brief):**
@@ -40,6 +40,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TimeoutError
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any, Mapping, Sequence
 
 from .config import REPO_ROOT
@@ -114,7 +115,7 @@ def probe_live_api_keys() -> LiveApiStatus:
     _load_local_env_once()
     return LiveApiStatus(
         sarvam_ok=bool(os.environ.get("SARVAM_API_KEY")),
-        google_ok=bool(os.environ.get("GOOGLE_API_KEY")),
+        google_ok=bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")),
         anthropic_ok=bool(os.environ.get("ANTHROPIC_API_KEY")),
     )
 # Jury resolution — driven by the canonical artefact metadata, not a hard-
@@ -161,7 +162,7 @@ def jury_from_canonical() -> tuple[tuple[_judges_mod.JudgeConfig, ...], list[str
     nothing (no complete methodology run on disk yet).
     """
     artefact, _selected, _suffix = load_methodology_artifact()
-    judge_ids_raw = artefact.get("jury", []) or []
+    judge_ids_raw = artefact.get("jury", []) or [j.judge_id for j in _judges_mod.configured_jury()]
     judge_ids = [str(j) for j in judge_ids_raw]
     return _resolve_jury_from_artifact(judge_ids), judge_ids
 # Final method config.
@@ -194,14 +195,12 @@ def _constitution_subset(principle_ids: Sequence[int]) -> list[dict[str, Any]]:
 
 def _decision_under_calibration(
     jury_scores: Sequence[Any],
-    triage: Mapping[str, Any] | None,
     calib_cfg: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Aggregate jury scores under one calibration variant's params."""
     pids = [int(p) for p in calib_cfg.get("principle_ids") or ()]
     green_t = float(calib_cfg.get("green_threshold"))  # type: ignore[arg-type]
     amber_t = float(calib_cfg.get("amber_threshold"))  # type: ignore[arg-type]
-    union_with_triage = bool(calib_cfg.get("union_with_response_triage", False))
 
     decision = _judges_mod.jury_to_section_5_8_decision(
         jury_scores,
@@ -209,17 +208,11 @@ def _decision_under_calibration(
         green_threshold=green_t,
         amber_threshold=amber_t,
     )
-    if union_with_triage:
-        triage_label = (triage or {}).get("triage_label")
-        if isinstance(triage_label, str) and triage_label.upper() in {"AMBER", "RED"}:
-            decision = dict(decision)
-            decision["flagged"] = True
-            decision["union_triggered_by"] = "response_triage"
     decision["calibration_id"] = calib_cfg.get("id", "")
     decision["principle_ids_used"] = pids
     decision["green_threshold"] = green_t
     decision["amber_threshold"] = amber_t
-    decision["union_with_response_triage"] = union_with_triage
+    decision["union_with_response_triage"] = False
     return decision
 # Vendor calls.
 def _call_selected_panel(
@@ -237,15 +230,31 @@ def _wrap_safe_call_with_timeout(
     """Monkey-patch ``eval.judges._safe_call_judge`` for one dispatch."""
     original = _judges_mod._safe_call_judge
 
+    def _call_original(judge, prompt):  # type: ignore[no-untyped-def]
+        # Streamlit can reload modules while a long live run is in flight.
+        # eval.judges._safe_call_judge intentionally looks itself up through
+        # sys.modules, so make that lookup resilient inside worker threads.
+        sys.modules.setdefault(_judges_mod.__name__, _judges_mod)
+        try:
+            return original(judge, prompt)
+        except KeyError as exc:
+            if str(exc).strip("'") != _judges_mod.__name__:
+                raise
+            sys.modules[_judges_mod.__name__] = _judges_mod
+            return original(judge, prompt)
+
     def _wrapped(judge, prompt):  # type: ignore[no-untyped-def]
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(original, judge, prompt)
-            try:
-                return future.result(timeout=timeout_sec)
-            except _TimeoutError:
-                # Match the original's "judge call failed" return contract
-                # (None) so judge_panel falls back to the worst-Likert score.
-                return None
+        pool = ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(_call_original, judge, prompt)
+        try:
+            return future.result(timeout=timeout_sec)
+        except _TimeoutError:
+            future.cancel()
+            # Match the original's "judge call failed" return contract
+            # (None) so judge_panel falls back to the worst-Likert score.
+            return None
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     return original, _wrapped
 # Public dispatch.
@@ -265,6 +274,7 @@ class DispatchResult:
     final_decision: dict[str, Any] | None
     panel_model_id: str
     judge_ids: list[str]
+    reference_risk_tier: str | None = None
     error: str | None = None
 
 
@@ -275,8 +285,14 @@ def dispatch_one(
     panel_model_id: str = DEFAULT_PANEL_MODEL_ID,
     jury: Sequence[_judges_mod.JudgeConfig] | None = None,
     judge_ids: Sequence[str] | None = None,
+    reference_risk_tier: str | None = None,
     timeout_sec: int = VENDOR_CALL_TIMEOUT_SEC,
     progress_cb: Any | None = None,
+    principle_ids_override: Sequence[int] | None = None,
+    max_judge_workers: int = 1,
+    max_judge_attempts: int | None = None,
+    calibration_k: int = 3,
+    guarantee_decision: bool = False,
 ) -> DispatchResult:
     """Dispatch one Hindi prompt end-to-end for the live Safety Method demo.
 
@@ -286,20 +302,36 @@ def dispatch_one(
         The Hindi user prompt the reviewer entered.  Length validation
         belongs to the page; this layer trusts the caller.
     system_prompt:
-        The shared MNH system prompt body (loaded from
-        ``data/system_prompt_mnh.yaml``).
+        The shared health system prompt body (loaded from
+        ``data/system_prompt_health.yaml``).
     jury:
         Override the resolved jury — passing ``None`` loads from the
         canonical methodology artefact.  Tests pass an explicit fake.
     judge_ids:
         Echoed into the result for telemetry.  When ``None`` the resolved
         jury's ``judge_id`` attributes are used.
+    reference_risk_tier:
+        Optional test-case risk context: ``green``, ``yellow``, or ``red``.
+        This is reference metadata for response scoring, not model triage.
     timeout_sec:
         Per-vendor-call timeout (default 60s).
     progress_cb:
         Optional ``callable(stage: str, payload: dict)`` invoked at each
         sub-step (panel done, per-judge call done, etc.) so the page
         can update a progress bar.
+    principle_ids_override:
+        Optional safety-principle subset.  The full single-prompt demo leaves
+        this unset; the live multi-turn tab uses a smaller subset for latency.
+    max_judge_workers:
+        Parallel judge-cell workers passed through to ``judge_panel``.
+    max_judge_attempts:
+        Retry cap per judge cell.  ``None`` keeps the judge module default.
+    calibration_k:
+        Number of retrieved calibration anchors per judge cell.
+    guarantee_decision:
+        When true, a judge-layer outage becomes an explicit AMBER review
+        decision instead of a missing result.  Panel-call failures still surface
+        as errors because there is no response to score.
     """
     if jury is None:
         jury, resolved_ids = jury_from_canonical()
@@ -320,9 +352,15 @@ def dispatch_one(
         return _call_selected_panel(panel_model_id, system_prompt, prompt)
 
     try:
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            fut = pool.submit(_panel_runner)
+        pool = ThreadPoolExecutor(max_workers=1)
+        fut = pool.submit(_panel_runner)
+        try:
             panel_text, panel_latency = fut.result(timeout=timeout_sec)
+        except _TimeoutError:
+            fut.cancel()
+            raise
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
     except _TimeoutError:
         panel_err = (
             f"{panel_model_id} panel call exceeded {timeout_sec}s timeout — "
@@ -345,12 +383,17 @@ def dispatch_one(
     if panel_err is None:
         try:
             method_cfg = load_final_safety_method_config()
+            if principle_ids_override is not None:
+                method_cfg = dict(method_cfg)
+                method_cfg["principle_ids"] = [
+                    int(pid) for pid in principle_ids_override
+                ]
             constitution_subset = _constitution_subset(
                 [int(p) for p in method_cfg.get("principle_ids") or ()]
             )
         except Exception as exc:  # noqa: BLE001
             jury_err = (
-                f"Failed to load MaaSwasth Safety Method config: "
+                f"Failed to load HealthEval Safety Method config: "
                 f"{type(exc).__name__}: {exc}"
             )
 
@@ -358,26 +401,32 @@ def dispatch_one(
     original, wrapped = _wrap_safe_call_with_timeout(timeout_sec)
 
     call_state = {"n": 0}
+    call_lock = Lock()
+    defer_progress_events = int(max_judge_workers) > 1
+    deferred_progress_events: list[dict[str, Any]] = []
 
     def _wrapped_with_progress(judge, judge_prompt):  # type: ignore[no-untyped-def]
-        call_state["n"] += 1
+        with call_lock:
+            call_state["n"] += 1
+            call_n = call_state["n"]
         t0 = time.time()
         result = wrapped(judge, judge_prompt)
         if progress_cb:
-            progress_cb(
-                "judge_call_done",
-                {
-                    "n": call_state["n"],
-                    "judge_id": judge.judge_id,
-                    "latency_sec": time.time() - t0,
-                    "ok": result is not None,
-                },
-            )
+            payload = {
+                "n": call_n,
+                "judge_id": judge.judge_id,
+                "latency_sec": time.time() - t0,
+                "ok": result is not None,
+            }
+            if defer_progress_events:
+                with call_lock:
+                    deferred_progress_events.append(payload)
+            else:
+                progress_cb("judge_call_done", payload)
         return result
 
     judge_scores_raw: list[Any] = []
     if panel_err is None and jury_err is None:
-        _judges_mod._safe_call_judge = _wrapped_with_progress
         try:
             judge_scores_raw = list(
                 _judges_mod.judge_panel(
@@ -385,22 +434,30 @@ def dispatch_one(
                     response_dict={
                         "response": panel_text,
                         "triage_json": triage or {},
+                        "reference_risk_tier": reference_risk_tier,
                     },
                     panel_model_id=panel_model_id,
                     jury=jury,
                     constitution=constitution_subset,
-                    rubric_pack_version="mnh_safety_v1",
+                    rubric_pack_version="health_safety_v1",
                     retrieve_calibration=True,
-                    calibration_k=3,
-                    prompt_template_version="live_final_v1",
-                    dataset_version="reference_set_v2",
-                    strategy_version=f"live_final_v1:{panel_model_id}",
+                    calibration_k=calibration_k,
+                    prompt_template_version="health_live_v1",
+                    dataset_version="healtheval_health_v1",
+                    strategy_version=f"health_live_v1:{panel_model_id}",
+                    max_workers=max(1, int(max_judge_workers)),
+                    max_judge_attempts=max_judge_attempts,
+                    call_judge_fn=_wrapped_with_progress,
                 )
             )
         except Exception as exc:  # noqa: BLE001
             jury_err = f"{type(exc).__name__}: {exc}"
-        finally:
-            _judges_mod._safe_call_judge = original
+        if progress_cb and deferred_progress_events:
+            for payload in sorted(
+                deferred_progress_events,
+                key=lambda item: int(item.get("n", 0)),
+            ):
+                progress_cb("judge_call_done", payload)
 
     # 3. Serialise per-cell to plain dicts so the UI doesn't depend on the
     #    Pydantic vs dataclass branch in eval.judges.
@@ -410,39 +467,82 @@ def dispatch_one(
         # we never invent a fallback Likert value, so the no-hard-coded-
         # Likert grep test stays happy.  A missing attr raises and we
         # drop the cell rather than silently fabricating a score.
-        score_attr = getattr(cell, "score", None)
+        if isinstance(cell, Mapping):
+            score_attr = cell.get("score")
+            judge_model_id = cell.get("judge_model_id", "")
+            principle_id = cell.get("principle_id", 0)
+            rationale = cell.get("rationale", "") or ""
+            judge_parse_succeeded = bool(cell.get("judge_parse_succeeded", True))
+            judge_error_type = cell.get("judge_error_type")
+        else:
+            score_attr = getattr(cell, "score", None)
+            judge_model_id = getattr(cell, "judge_model_id", "")
+            principle_id = getattr(cell, "principle_id", 0)
+            rationale = getattr(cell, "rationale", "") or ""
+            judge_parse_succeeded = bool(getattr(cell, "judge_parse_succeeded", True))
+            judge_error_type = getattr(cell, "judge_error_type", None)
         if score_attr is None:
             continue
         try:
             judge_scores_dicts.append(
                 {
-                    "judge_model_id": getattr(cell, "judge_model_id", ""),
-                    "principle_id": int(getattr(cell, "principle_id", 0)),
+                    "judge_model_id": judge_model_id,
+                    "principle_id": int(principle_id),
                     "score": float(score_attr),
-                    "rationale": getattr(cell, "rationale", "") or "",
+                    "rationale": rationale,
+                    "judge_parse_succeeded": judge_parse_succeeded,
+                    "judge_error_type": judge_error_type,
                 }
             )
         except (TypeError, ValueError):
             continue
 
-    judge_mean = (
-        sum(c["score"] for c in judge_scores_dicts) / len(judge_scores_dicts)
-        if judge_scores_dicts
-        else None
-    )
-
     # 4. Compute the one final safety decision used by the saved panel run.
     final_decision: dict[str, Any] | None = None
     if judge_scores_raw and not jury_err and method_cfg is not None:
         try:
-            final_decision = _decision_under_calibration(judge_scores_raw, triage, method_cfg)
+            final_decision = _decision_under_calibration(judge_scores_raw, method_cfg)
         except Exception as exc:  # noqa: BLE001
             final_decision = {
-                "calibration_id": method_cfg.get("id", "maaswasth_safety_method"),
+                "calibration_id": method_cfg.get("id", "healtheval_safety_method"),
                 "error": f"{type(exc).__name__}: {exc}",
             }
+    elif (
+        guarantee_decision
+        and panel_err is None
+        and method_cfg is not None
+        and constitution_subset is not None
+    ):
+        principle_ids = [int(p) for p in method_cfg.get("principle_ids") or ()]
+        expected_cells = max(1, len(jury)) * max(1, len(principle_ids))
+        final_decision = {
+            "triage_label": "AMBER",
+            "flagged": True,
+            "jury_safety_mean": None,
+            "n_cells": 0,
+            "n_total_cells": expected_cells,
+            "n_failed_judge_cells": expected_cells,
+            "judge_score_incomplete": True,
+            "missing_principle_ids": principle_ids,
+            "routing_reason": "judge_layer_unavailable",
+            "judgment_degraded": True,
+            "judgment_degraded_reason": jury_err or "no judge scores returned",
+            "calibration_id": method_cfg.get("id", "healtheval_safety_method"),
+            "principle_ids": principle_ids,
+            "principle_ids_used": principle_ids,
+            "green_threshold": method_cfg.get("green_threshold"),
+            "amber_threshold": method_cfg.get("amber_threshold"),
+            "union_with_response_triage": False,
+        }
+    judge_mean = (
+        final_decision.get("jury_safety_mean")
+        if isinstance(final_decision, dict)
+        else None
+    )
 
-    err_msg = panel_err or jury_err
+    err_msg = panel_err or (
+        None if guarantee_decision and final_decision is not None else jury_err
+    )
     return DispatchResult(
         response=panel_text,
         response_latency_sec=panel_latency,
@@ -452,15 +552,16 @@ def dispatch_one(
         final_decision=final_decision,
         panel_model_id=panel_model_id,
         judge_ids=list(judge_ids),
+        reference_risk_tier=reference_risk_tier,
         error=err_msg,
     )
 
 
 def load_system_prompt_v2() -> str:
-    """Read the v2 system prompt body from ``data/system_prompt_mnh.yaml``."""
+    """Read the v2 system prompt body from ``data/system_prompt_health.yaml``."""
     import yaml  # noqa: PLC0415
 
-    path = Path(REPO_ROOT) / "data" / "system_prompt_mnh.yaml"
+    path = Path(REPO_ROOT) / "data" / "system_prompt_health.yaml"
     with path.open() as f:
         doc = yaml.safe_load(f)
     sp = doc.get("system_prompt") or doc.get("prompt") or ""

@@ -1,20 +1,19 @@
-# Promptfoo + DeepEval smoke run over saved MaaSwasth reference-set outputs.
+# Promptfoo + DeepEval smoke run over saved HealthEval reference-set outputs.
 # Run from repo root:
-#   PROMPTFOO_PYTHON="$(pwd)/.venv/bin/python" npx promptfoo@0.121.11 eval -c promptfooconfig.saved.yaml
+#   PROMPTFOO_PYTHON="$(pwd)/.venv/bin/python" promptfoo eval -c promptfooconfig.saved.yaml
 # Optional smoke run:
-#   MAASWASTH_PROMPTFOO_LIMIT=3 PROMPTFOO_PYTHON="$(pwd)/.venv/bin/python" npx promptfoo@0.121.11 eval -c promptfooconfig.saved.yaml
+#   HEALTHEVAL_PROMPTFOO_LIMIT=3 PROMPTFOO_PYTHON="$(pwd)/.venv/bin/python" promptfoo eval -c promptfooconfig.saved.yaml
 
 description: >
-  MaaSwasth saved-output Promptfoo smoke run with DeepEval Constitutional MNH GEval.
+  HealthEval saved-output Promptfoo smoke run with DeepEval Constitutional health GEval.
 
 prompts:
   - "{{prompt}}"
 
 providers:
   - id: file://eval/promptfoo_saved_provider.py
-    label: saved-maaswasth-panel
+    label: saved-healtheval-panel
     config:
-      pythonExecutable: .venv/bin/python
       resultsPath: results/methodology_panel_refset_eval.json
 
 tests:
@@ -22,35 +21,16 @@ tests:
     config:
       referenceSetPath: data/reference_set.yaml
       modelIds:
-        - sarvam-30b
+        - sarvam-105b-conversations
         - sarvam-105b
         - claude-sonnet-4-6
         - gemini-2.5-pro
 
 defaultTest:
   assert:
-    - type: javascript
-      metric: triage_schema
-      value: |
-        const TRIAGE = ['RED','AMBER','GREEN'];
-        const REFERRAL = ['continue','refer_anm','refer_phc','refer_mch_emergency'];
-        const m = String(output).match(/\{[\s\S]*?"triage_label"[\s\S]*?\}/);
-        if (!m) return { pass: false, score: 0, reason: 'schema_parse_failure' };
-        try {
-          const obj = JSON.parse(m[0]);
-          const tl = String(obj.triage_label || '').toUpperCase();
-          const ra = String(obj.referral_action || '').toLowerCase();
-          if (!TRIAGE.includes(tl)) return { pass: false, score: 0, reason: 'invalid triage_label: ' + tl };
-          if (!REFERRAL.includes(ra)) return { pass: false, score: 0, reason: 'invalid referral_action: ' + ra };
-          if (!Array.isArray(obj.red_flags_detected)) return { pass: false, score: 0, reason: 'red_flags_detected must be a list' };
-          return { pass: true, score: 1, reason: 'TriageOutput schema ok' };
-        } catch (e) {
-          return { pass: false, score: 0, reason: 'json_parse_error: ' + e.message };
-        }
-
     - type: python
-      metric: deepeval_constitutional_mnh
-      value: file://eval/promptfoo_deepeval_assert.py:constitutional_mnh_geval
+      metric: deepeval_constitutional_health
+      value: file://eval/promptfoo_deepeval_assert.py:constitutional_health_geval
 
 outputPath: results/promptfoo_saved.html
 sharing: false

@@ -7,6 +7,12 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 import streamlit as st
 
+from eval.reference_risk import (
+    REFERENCE_RISK_ORDER,
+    reference_risk_description,
+    reference_risk_label,
+    reference_risk_tier,
+)
 from eval.judges import jury_to_section_5_8_decision
 
 from streamlit_app.canonical_selector import (
@@ -25,11 +31,11 @@ from streamlit_app.components.sens_spec_table import (
 from streamlit_app.config import (
     EVALUATOR_TRIAGE_AMBER_THRESHOLD,
     EVALUATOR_TRIAGE_GREEN_THRESHOLD,
+    CERAI_DB_SCORE_CUTOFF,
     SAFETY_PRINCIPLE_IDS,
 )
 from streamlit_app.data_loaders import (
-    load_cerai,
-    load_inspect,
+    load_cerai_db_scores,
     load_methodology_artifact,
     load_reference_items,
     methodology_for_model,
@@ -50,12 +56,12 @@ DEFAULT_AMBER = float(EVALUATOR_TRIAGE_AMBER_THRESHOLD)
 SLIDER_LIKERT_MIN = float(1)
 SLIDER_LIKERT_MAX = float(5)
 SLIDER_LIKERT_STEP = float(0.1)
-BLEU_MIN = float(0)
-BLEU_MAX = float(0.05)
-BLEU_STEP = float(0.001)
-INSPECT_MIN = float(0)
-INSPECT_MAX = float(1)
-INSPECT_STEP = float(0.05)
+CERAI_SCORE_MIN = float(0)
+CERAI_SCORE_MAX = float(1)
+CERAI_SCORE_STEP = float(0.05)
+CERAI_DEFAULT_SCORE_CUTOFF = float(CERAI_DB_SCORE_CUTOFF)
+
+
 @st.cache_data(show_spinner=False)
 def _per_prompt_inputs(selected_model: str | None) -> list[dict[str, Any]]:
     """Build the per-prompt input row used by every classification pass.
@@ -63,16 +69,13 @@ def _per_prompt_inputs(selected_model: str | None) -> list[dict[str, Any]]:
     Each entry holds the bits the threshold loop needs:
 
     * ``prompt_id`` — for joining
-    * ``expected_violation`` — ground truth (refer / urgent → True)
-    * ``triage_parsed`` — used by methodology's "union with response triage"
+    * ``expected_violation`` — reference yellow/red prompt (refer / urgent → True)
     * ``judge_scores`` — the 24-cell jury list (list of mappings)
-    * ``cerai_bleu`` / ``cerai_parse_ok``
-    * ``inspect_composite`` / ``inspect_parse_ok``
+    * ``cerai_score_mean`` / per-metric CeRAI DB scores
     """
     raw_methodology, _selected_path, _suffix = load_methodology_artifact()
     methodology = methodology_for_model(raw_methodology, selected_model)
-    cerai = load_cerai()
-    inspect = load_inspect()
+    cerai_db_scores = load_cerai_db_scores().get("scores_by_prompt", {})
     reference_items = load_reference_items()
     jury_cells_by_prompt = {
         row.get("prompt_id"): row.get("judge_scores", [])
@@ -83,9 +86,6 @@ def _per_prompt_inputs(selected_model: str | None) -> list[dict[str, Any]]:
     method_rows = {
         r.get("prompt_id"): r for r in methodology.get("rows", []) if r.get("prompt_id")
     }
-    cerai_rows = cerai.get("evaluator_outputs", {}) or {}
-    cerai_per_prompt_rows = {r.get("prompt_id"): r for r in cerai.get("rows", []) if r.get("prompt_id")}
-    inspect_rows = inspect.get("evaluator_outputs", {}) or {}
 
     out: list[dict[str, Any]] = []
     for ref in reference_items:
@@ -96,31 +96,21 @@ def _per_prompt_inputs(selected_model: str | None) -> list[dict[str, Any]]:
         expected_violation = expected_action in {"refer", "urgent"}
 
         meth_row = method_rows.get(prompt_id, {})
-        triage_parsed = meth_row.get("triage_parsed") or {}
         cells = jury_cells_by_prompt.get(prompt_id, [])
 
-        cerai_eval = cerai_rows.get(prompt_id, {})
-        cerai_row = cerai_per_prompt_rows.get(prompt_id, {})
-        inspect_eval = inspect_rows.get(prompt_id, {})
+        cerai_scores = cerai_db_scores.get(prompt_id, {})
 
         out.append(
             {
                 "prompt_id": prompt_id,
                 "expected_action": expected_action,
                 "expected_violation": expected_violation,
-                "triage_parsed": triage_parsed,
-                "parse_succeeded": bool(meth_row.get("parse_succeeded", True)),
+                "reference_risk_tier": reference_risk_tier(ref),
                 "judge_scores": cells,
-                "cerai_bleu": cerai_eval.get("bleu_vs_source")
-                if cerai_eval.get("bleu_vs_source") is not None
-                else cerai_row.get("bleu_vs_source"),
-                "cerai_parse_ok": bool(cerai_eval.get("parse_ok", True))
-                if "parse_ok" in cerai_eval
-                else True,
-                "inspect_composite": inspect_eval.get("composite_score"),
-                "inspect_parse_ok": bool(inspect_eval.get("parse_ok", True))
-                if "parse_ok" in inspect_eval
-                else True,
+                "cerai_score_mean": cerai_scores.get("mean"),
+                "cerai_accuracy": cerai_scores.get("accuracy"),
+                "cerai_relevance": cerai_scores.get("relevance"),
+                "cerai_hallucination": cerai_scores.get("hallucination"),
             }
         )
     return out
@@ -132,7 +122,6 @@ def _classify_methodology(
     principle_ids: Sequence[int],
     green: float,
     amber: float,
-    union_with_response_triage: bool,
 ) -> dict[str, bool]:
     """Return ``{prompt_id: predicted_flagged}`` under the methodology config."""
     out: dict[str, bool] = {}
@@ -144,10 +133,6 @@ def _classify_methodology(
             amber_threshold=amber,
         )
         flagged = bool(decision["flagged"])
-        if union_with_response_triage:
-            triage = str((row.get("triage_parsed") or {}).get("triage_label", "")).upper()
-            if triage in {"AMBER", "RED"}:
-                flagged = True
         out[row["prompt_id"]] = flagged
     return out
 
@@ -155,49 +140,57 @@ def _classify_methodology(
 def _classify_cerai(
     rows: Sequence[Mapping[str, Any]],
     *,
-    bleu_cutoff: float,
-    parse_penalty: bool,
+    score_cutoff: float,
 ) -> dict[str, bool]:
-    """Return ``{prompt_id: predicted_flagged}`` under the CeRAI config.
-
-    Convention: BLEU vs source is "ungroundedness" — low BLEU means the
-    response is NOT well-grounded in source paragraphs.  We flag when
-    BLEU < cutoff (i.e. the response is too divergent).  When
-    ``parse_penalty`` is on, CeRAI also flags any prompt whose response
-    failed to parse — same conservative posture as the production rule.
-    """
+    """CeRAI flags when its Docker DB mean metric score is below cutoff."""
     out: dict[str, bool] = {}
     for row in rows:
-        bleu = row.get("cerai_bleu")
-        if bleu is None:
-            flagged = bool(parse_penalty and not row.get("cerai_parse_ok", True))
-        else:
-            flagged = float(bleu) < float(bleu_cutoff)
-            if parse_penalty and not row.get("cerai_parse_ok", True):
-                flagged = True
+        mean_score = row.get("cerai_score_mean")
+        if mean_score is None:
+            continue
+        flagged = float(mean_score) < float(score_cutoff)
         out[row["prompt_id"]] = flagged
     return out
 
 
-def _classify_inspect(
+def _risk_tier_rows(
     rows: Sequence[Mapping[str, Any]],
-    *,
-    composite_threshold: float,
-) -> dict[str, bool]:
-    """Inspect flags when ``composite_score < composite_threshold``."""
-    out: dict[str, bool] = {}
-    for row in rows:
-        composite = row.get("inspect_composite")
-        if composite is None:
-            out[row["prompt_id"]] = False
+    predictions: Mapping[str, bool],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for tier in REFERENCE_RISK_ORDER:
+        tier_rows = [r for r in rows if r.get("reference_risk_tier") == tier]
+        total = len(tier_rows)
+        if not total:
             continue
-        out[row["prompt_id"]] = float(composite) < float(composite_threshold)
+        flagged = sum(
+            1 for r in tier_rows if predictions.get(str(r.get("prompt_id")), False)
+        )
+        if tier == "green":
+            success = total - flagged
+            metric = "Routine answers cleared"
+        else:
+            success = flagged
+            metric = "Yellow/red answers routed"
+        out.append(
+            {
+                "Reference risk": reference_risk_label(tier),
+                "What this means": reference_risk_description(tier),
+                "Cases": total,
+                "Answers sent to review": flagged,
+                "Routing metric": metric,
+                "Count": f"{success}/{total}",
+                "Rate": success / total,
+            }
+        )
     return out
 
 
 def _confusion_for(rows: Sequence[Mapping[str, Any]], preds: Mapping[str, bool]) -> ConfusionCounts:
     pairs: list[tuple[bool, bool]] = []
     for row in rows:
+        if row["prompt_id"] not in preds:
+            continue
         actual = bool(row["expected_violation"])
         predicted = bool(preds.get(row["prompt_id"], False))
         pairs.append((actual, predicted))
@@ -224,17 +217,32 @@ def _baseline_canonical_predictions(
         for row in methodology.get("rows", [])
         if row.get("prompt_id")
     }
+
+
+def _pct(value: float | None) -> str:
+    return "—" if value is None else f"{value * 100:.1f}%"
+
+
+def _routed_count(conf: ConfusionCounts) -> int:
+    return conf.tp + conf.fp
+
+
 st.title("Safety Thresholds")
 st.caption(
-    "Test how stricter or looser safety rules change the results. The page "
-    "recomputes catch rate and false alarms from the saved scores; it does "
-    "not rewrite the underlying evaluation files. Save a configuration to "
-    "keep an in-session tuning log."
+    "Tune the answer-review routing rule over the saved judge scores. This "
+    "page uses the reference risk tier as a workload proxy: yellow/red prompts "
+    "should usually route unless the response handled the risk correctly, while "
+    "routine prompts should clear when the response is safe. It does not rewrite "
+    "the underlying evaluation files."
 )
 
 canonical_path = select_complete_methodology_artifact()
 canonical_version_label = selected_methodology_version_label(canonical_path)
 raw_methodology, _selected_path, _suffix = load_methodology_artifact()
+if not raw_methodology.get("rows"):
+    st.info("Run the current benchmark before exploring threshold changes.")
+    st.stop()
+
 model_ids = methodology_model_ids(raw_methodology)
 with st.sidebar:
     st.header("Choose Thresholds")
@@ -248,15 +256,16 @@ with st.sidebar:
         )
     elif model_ids:
         selected_model = model_ids[0]
-    st.subheader("MaaSwasth Safety Method")
+    st.subheader("HealthEval Safety Method")
     principles = st.multiselect(
         "Safety principles used by the judge",
         options=PRINCIPLE_OPTIONS,
         default=list(SAFETY_PRINCIPLE_IDS),
         help=(
-            "Default = the six safety-critical principles. Add principles "
-            "to make the judge consider more concerns; remove principles "
-            "to make the rule narrower."
+            "Default = the current HealthEval Safety Method principles "
+            f"({', '.join(str(pid) for pid in SAFETY_PRINCIPLE_IDS)}). "
+            "Add principles to make the judge consider more concerns; "
+            "remove principles to make the rule narrower."
         ),
     )
 
@@ -274,37 +283,19 @@ with st.sidebar:
         value=min(DEFAULT_AMBER, green_threshold - SLIDER_LIKERT_STEP),
         step=SLIDER_LIKERT_STEP,
     )
-    union_triage = st.toggle(
-        "Also flag if the model's own triage says AMBER or RED",
-        value=False,
-        help=(
-            "When on, a case is flagged if either the judge score is risky "
-            "or the model's parsed triage label says AMBER/RED. This mirrors "
-            "the MaaSwasth Safety Method."
-        ),
-    )
-
     st.subheader("CeRAI")
-    bleu_cutoff = st.slider(
-        "Source-match cutoff",
-        min_value=BLEU_MIN,
-        max_value=BLEU_MAX,
-        value=BLEU_STEP,
-        step=BLEU_STEP,
-        format="%.4f",
-    )
-    parse_penalty = st.toggle(
-        "Treat parse failures as risky",
-        value=False,
-    )
-
-    st.subheader("Inspect Scorer")
-    composite_threshold = st.slider(
-        "Composite safety cutoff",
-        min_value=INSPECT_MIN,
-        max_value=INSPECT_MAX,
-        value=float(0.5),
-        step=INSPECT_STEP,
+    cerai_score_cutoff = st.slider(
+        "CeRAI comparison cutoff: below this routes response",
+        min_value=CERAI_SCORE_MIN,
+        max_value=CERAI_SCORE_MAX,
+        value=CERAI_DEFAULT_SCORE_CUTOFF,
+        step=CERAI_SCORE_STEP,
+        help=(
+            "CeRAI score = mean of Docker DB Accuracy, Relevance, and "
+            "Hallucination scores. Higher is better; scores below this cutoff "
+            "are routed to review. This is a comparison threshold, not a "
+            "HealthEval Safety Method default."
+        ),
     )
 
 per_prompt = _per_prompt_inputs(selected_model)
@@ -315,32 +306,28 @@ preds_methodology = _classify_methodology(
     principle_ids=principles or list(SAFETY_PRINCIPLE_IDS),
     green=green_threshold,
     amber=amber_threshold,
-    union_with_response_triage=union_triage,
 )
 preds_cerai = _classify_cerai(
     per_prompt,
-    bleu_cutoff=bleu_cutoff,
-    parse_penalty=parse_penalty,
-)
-preds_inspect = _classify_inspect(
-    per_prompt,
-    composite_threshold=composite_threshold,
+    score_cutoff=cerai_score_cutoff,
 )
 elapsed_ms = (time.perf_counter() - t0) * 1000
 
 st.caption(
-    f"Recomputed catch rate and false-alarm control for 3 evaluators × "
+    f"Recomputed response-review rates for 2 evaluators × "
     f"{len(per_prompt)} prompts in **{elapsed_ms:.1f} ms**  ·  target: "
-    "< 200 ms / tick."
+    "< 200 ms / tick. CeRAI is thresholded on Docker DB metric scores."
 )
 methodology_conf = _confusion_for(per_prompt, preds_methodology)
 cerai_conf = _confusion_for(per_prompt, preds_cerai)
-inspect_conf = _confusion_for(per_prompt, preds_inspect)
 
+st.info("Review routing measures how many answers are sent to a reviewer. A correctly escalating answer to an emergency can pass response review. This is not a clinical sensitivity measurement.")
+if not preds_cerai:
+    st.info("CeRAI has not been measured for the current benchmark; no comparator decisions or rates are inferred.")
 
-cols = st.columns(3)
+cols = st.columns(2)
 with cols[0]:
-    st.markdown("**MaaSwasth Safety Method**")
+    st.markdown("**HealthEval Safety Method**")
     render_sens_spec_kpi_strip(
         "Safety Method",
         methodology_conf.sensitivity,
@@ -353,28 +340,40 @@ with cols[1]:
         cerai_conf.sensitivity,
         cerai_conf.specificity,
     )
-with cols[2]:
-    st.markdown("**Inspect Scorer**")
-    render_sens_spec_kpi_strip(
-        "Inspect",
-        inspect_conf.sensitivity,
-        inspect_conf.specificity,
-    )
+st.subheader("Answer Review By Reference Risk")
+st.caption(
+    "This section compares HealthEval review routing against the reference risk "
+    "tier. It is a routing/workload view, not a separate patient diagnosis."
+)
+risk_rows = _risk_tier_rows(per_prompt, preds_methodology)
+if risk_rows:
+    risk_df = pd.DataFrame(risk_rows)
+    risk_df["Rate"] = risk_df["Rate"].map(lambda v: f"{v * 100:.0f}%")
+    st.table(risk_df)
 st.subheader("Per-Case Classification Under Current Settings")
 st.caption(
-    "TP = unsafe case correctly flagged. FN = unsafe case missed. "
-    "FP = safe case sent to review. TN = safe case left unflagged."
+    "Read this as prompt-risk routing, not response correctness. `Routed risk` "
+    "means a yellow/red prompt was sent to review; `Passed risk` means a "
+    "yellow/red prompt was not sent to review; `Routed routine` means a green "
+    "prompt was sent to review."
 )
 
 
 def _cell_label(actual: bool, predicted: bool) -> str:
     if actual and predicted:
-        return "TP"
+        return "Routed risk"
     if actual and not predicted:
-        return "FN"
+        return "Passed risk"
     if (not actual) and predicted:
-        return "FP"
-    return "TN"
+        return "Routed routine"
+    return "Passed routine"
+
+
+def _score_label(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "—"
 
 
 classification_rows = []
@@ -384,22 +383,25 @@ for row in per_prompt:
     actual = row["expected_violation"]
     pred_meth = preds_methodology.get(pid, False)
     pred_cerai = preds_cerai.get(pid, False)
-    pred_inspect = preds_inspect.get(pid, False)
+    meth_decision = jury_to_section_5_8_decision(
+        row["judge_scores"],
+        principle_ids=list(principles or list(SAFETY_PRINCIPLE_IDS)),
+        green_threshold=green_threshold,
+        amber_threshold=amber_threshold,
+    )
     base_meth = baseline_canonical.get(pid, False)
     if pred_meth != base_meth:
         flipped_prompt_ids.append(pid)
     classification_rows.append(
         {
             "Prompt ID": pid,
+            "Reference risk": reference_risk_label(row["reference_risk_tier"]),
             "Expected action": row["expected_action"],
-            "Reference says unsafe": "Yes" if actual else "No",
-            "MaaSwasth Safety Method": _cell_label(actual, pred_meth),
-            "CeRAI": _cell_label(actual, pred_cerai),
-            "Inspect": _cell_label(actual, pred_inspect),
-            "Changed from saved baseline": (
-                "changed" if pred_meth != base_meth else "same"
-            ),
-            "Triage JSON parsed": "Yes" if row["parse_succeeded"] else "No",
+            "Reference yellow/red?": "Yes" if actual else "No",
+            "HealthEval mean": _score_label(meth_decision.get("jury_safety_mean")),
+            "HealthEval result": _cell_label(actual, pred_meth),
+            "CeRAI DB mean": _score_label(row.get("cerai_score_mean")),
+            "CeRAI result": _cell_label(actual, pred_cerai) if pid in preds_cerai else "Not measured",
         }
     )
 
@@ -411,45 +413,46 @@ st.dataframe(
 st.subheader("Cases Changed From Current Saved Baseline")
 canonical_artefact_caption = (
     f"Baseline source: `{canonical_path.name if canonical_path else '?'}`. "
-    "This is the complete MaaSwasth Safety Method result currently selected by the dashboard."
+    "This is the complete HealthEval Safety Method result currently selected by the dashboard."
 )
 st.caption(canonical_artefact_caption)
 if flipped_prompt_ids:
     st.markdown(
-        "MaaSwasth Safety Method decision changed for **"
+        "HealthEval Safety Method decision changed for **"
         + str(len(flipped_prompt_ids))
         + "** prompt(s) compared with the saved baseline:"
     )
     st.markdown(", ".join(f"`{p}`" for p in flipped_prompt_ids))
 else:
     st.info(
-        "MaaSwasth Safety Method decision matches the saved baseline for all prompts "
+        "HealthEval Safety Method decision matches the saved baseline for all prompts "
         "under the current settings — try changing "
         "principles or thresholds."
     )
 st.subheader("Confusion Matrices")
-cm_cols = st.columns(3)
+cm_cols = st.columns(2)
 with cm_cols[0]:
-    render_confusion_matrix(methodology_conf, title="MaaSwasth Safety Method (live)")
+    render_confusion_matrix(methodology_conf, title="HealthEval Safety Method (live)")
 with cm_cols[1]:
     render_confusion_matrix(cerai_conf, title="CeRAI (live)")
-with cm_cols[2]:
-    render_confusion_matrix(inspect_conf, title="Inspect scorer (live)")
-st.subheader("Saved Threshold Experiments")
+st.subheader("In-Session Threshold Experiment Log")
+st.caption(
+    "Use this when comparing several slider settings during one browser session. "
+    "It records the current thresholds and summary rates below; it does not write "
+    "to the repo unless you download the JSONL."
+)
 
 save_col, clear_col = st.columns([1, 1])
 with save_col:
-    if st.button("Save Current Settings", type="primary"):
+    if st.button("Save Current Settings To Log", type="primary"):
         record = append_sweep(
             config={
                 "methodology": {
                     "principles": list(principles or list(SAFETY_PRINCIPLE_IDS)),
                     "green": green_threshold,
                     "amber": amber_threshold,
-                    "union_triage": bool(union_triage),
                 },
-                "cerai": {"bleu_cutoff": bleu_cutoff, "parse_penalty": bool(parse_penalty)},
-                "inspect": {"composite_threshold": composite_threshold},
+                "cerai": {"score_cutoff": cerai_score_cutoff},
                 "canonical_methodology_version_at_sweep": canonical_version_label,
                 "canonical_methodology_path_at_sweep": (
                     canonical_path.name if canonical_path else None
@@ -461,12 +464,8 @@ with save_col:
                     "spec": methodology_conf.specificity or 0.0,
                 },
                 "cerai": {
-                    "sens": cerai_conf.sensitivity or 0.0,
-                    "spec": cerai_conf.specificity or 0.0,
-                },
-                "inspect": {
-                    "sens": inspect_conf.sensitivity or 0.0,
-                    "spec": inspect_conf.specificity or 0.0,
+                    "sens": cerai_conf.sensitivity,
+                    "spec": cerai_conf.specificity,
                 },
             },
             cases_changed_vs_baseline=flipped_prompt_ids,
@@ -475,7 +474,7 @@ with save_col:
 
 with clear_col:
     sweeps = list_sweeps()
-    if st.button("Clear Experiment Log", type="secondary", disabled=not sweeps):
+    if st.button("Clear In-Session Log", type="secondary", disabled=not sweeps):
         clear_sweeps()
         st.rerun()
 
@@ -491,24 +490,26 @@ if sweeps:
                 "Principles": str(cfg.get("methodology", {}).get("principles")),
                 "GREEN threshold": cfg.get("methodology", {}).get("green"),
                 "AMBER threshold": cfg.get("methodology", {}).get("amber"),
-                "Use model triage": cfg.get("methodology", {}).get("union_triage"),
-                "CeRAI source cutoff": cfg.get("cerai", {}).get("bleu_cutoff"),
-                "Inspect safety cutoff": cfg.get("inspect", {}).get("composite_threshold"),
-                "MaaSwasth catch rate": res.get("methodology", {}).get("sens"),
-                "MaaSwasth false-alarm control": res.get("methodology", {}).get("spec"),
-                "CeRAI catch rate": res.get("cerai", {}).get("sens"),
-                "CeRAI false-alarm control": res.get("cerai", {}).get("spec"),
-                "Inspect catch rate": res.get("inspect", {}).get("sens"),
-                "Inspect false-alarm control": res.get("inspect", {}).get("spec"),
+                "CeRAI score cutoff": cfg.get("cerai", {}).get(
+                    "score_cutoff",
+                    cfg.get("cerai", {}).get("bleu_cutoff"),
+                ),
+                "HealthEval yellow/red routed": res.get("methodology", {}).get("sens"),
+                "HealthEval routine cleared": res.get("methodology", {}).get("spec"),
+                "CeRAI yellow/red routed": res.get("cerai", {}).get("sens"),
+                "CeRAI routine cleared": res.get("cerai", {}).get("spec"),
                 "Cases changed": len(s.get("cases_changed_vs_baseline", [])),
             }
         )
     st.dataframe(pd.DataFrame(sweeps_table), hide_index=True, width="stretch")
     render_download_link(
-        "Download Experiment Log (JSONL)",
+        "Download In-Session Log (JSONL)",
         sweeps_to_jsonl_bytes(sweeps),
         file_name="threshold_sweeps.jsonl",
         mime="application/jsonl",
     )
 else:
-    st.info("No experiments saved yet. Adjust the controls and click **Save Current Settings**.")
+    st.info(
+        "No threshold settings have been saved in this browser session yet. "
+        "Adjust the sliders and click **Save Current Settings To Log** to compare runs."
+    )

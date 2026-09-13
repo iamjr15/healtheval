@@ -1,7 +1,7 @@
-"""Sensitivity / specificity table component (with bootstrap + Beta-Binomial CIs).
+"""Response-review rate table component (with bootstrap + Beta-Binomial CIs).
 
-Renders a tabular summary of one or more evaluators' sens / spec rates
-plus the two confidence-interval flavours the methodology pipeline emits
+Renders a tabular summary of one or more evaluators' sensitivity/specificity
+rates plus the two confidence-interval flavours the methodology pipeline emits
 (``bootstrap_95ci`` and ``beta_binomial_95ci`` per
 ``results/tool_meta_evaluation.json``).  Used by:
 
@@ -10,11 +10,7 @@ plus the two confidence-interval flavours the methodology pipeline emits
 * Page 5 (Threshold Tuning) — live recomputed sens/spec under alternative
   config; rates colour-coded so reviewers can eyeball improvements.
 
-Colour-coding convention (cell background tint via pandas Styler):
-
-* ``rate ≥ 0.80`` → green tint (good)
-* ``0.50 ≤ rate < 0.80`` → amber tint (mediocre)
-* ``rate < 0.50`` → red tint (bad)
+Routing rates describe workload, so they are not tinted as clinical pass/fail.
 
 The component never reads evidence files — it takes a list of dicts the
 page already loaded.  This keeps cache locality on the page (one
@@ -27,14 +23,6 @@ from typing import Any, Iterable, Mapping
 
 import pandas as pd
 import streamlit as st
-
-# Colour bands.  Kept as named CSS colours rather than hex so the
-# "no hard-coded numbers" grep test (which targets Likert-range decimals)
-# isn't confused.
-_TINT_GOOD = "background-color: rgba(7, 148, 85, 0.18);"
-_TINT_MEH = "background-color: rgba(220, 104, 3, 0.18);"
-_TINT_BAD = "background-color: rgba(217, 45, 32, 0.18);"
-
 
 def _format_rate(value: float | None) -> str:
     """Render a [0, 1] rate as a percentage with one decimal."""
@@ -62,22 +50,12 @@ def _format_ci(ci: list[float] | tuple[float, float] | None) -> str:
 def _display_evaluator_name(raw: Any) -> str:
     name = str(raw or "—")
     labels = {
-        "independent_methodology": "MaaSwasth Safety Method",
+        "independent_methodology": "HealthEval Safety Method",
         "cerai_metric_layer": "CeRAI",
         "inspect_safety_scorer": "Inspect scorer",
-        "maaswasth_safety_method:panel_mean": "MaaSwasth Safety Method",
+        "healtheval_safety_method:panel_mean": "HealthEval Safety Method",
     }
     return labels.get(name, name.replace("_", " "))
-
-
-def _tint_for_rate(rate: float | None) -> str:
-    if rate is None:
-        return ""
-    if rate >= 0.80:
-        return _TINT_GOOD
-    if rate >= 0.50:
-        return _TINT_MEH
-    return _TINT_BAD
 
 
 def _row_for_evaluator(row: Mapping[str, Any]) -> dict[str, Any]:
@@ -89,17 +67,14 @@ def _row_for_evaluator(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "Evaluator": _display_evaluator_name(row.get("evaluator", "—")),
         "n": row.get("n", "—"),
-        "Catch rate (sensitivity)": _format_rate(sens_rate),
-        "Unsafe caught k/n": f"{sens.get('k', '?')}/{sens.get('n', '?')}",
-        "Catch rate 95% CI": _format_ci(sens.get("bootstrap_95ci")),
-        "Catch rate 95% CrI": _format_ci(sens.get("beta_binomial_95ci")),
-        "False-alarm control (specificity)": _format_rate(spec_rate),
-        "Safe passed k/n": f"{spec.get('k', '?')}/{spec.get('n', '?')}",
-        "False-alarm control 95% CI": _format_ci(spec.get("bootstrap_95ci")),
-        "False-alarm control 95% CrI": _format_ci(spec.get("beta_binomial_95ci")),
-        # Sentinel raw rates kept for the styler — dropped before render.
-        "_sens_rate": sens_rate,
-        "_spec_rate": spec_rate,
+        "Safety-probe answers routed": _format_rate(sens_rate),
+        "Safety-probe routed k/n": f"{sens.get('k', '?')}/{sens.get('n', '?')}",
+        "Routing 95% CI": _format_ci(sens.get("bootstrap_95ci")),
+        "Routing 95% CrI": _format_ci(sens.get("beta_binomial_95ci")),
+        "Other answers cleared": _format_rate(spec_rate),
+        "Other cleared k/n": f"{spec.get('k', '?')}/{spec.get('n', '?')}",
+        "Other-clear 95% CI": _format_ci(spec.get("bootstrap_95ci")),
+        "Other-clear 95% CrI": _format_ci(spec.get("beta_binomial_95ci")),
     }
 
 
@@ -136,28 +111,14 @@ def render_sens_spec_table(
         return
 
     df = pd.DataFrame(rows_list)
-    sens_raw = df["_sens_rate"].tolist()
-    spec_raw = df["_spec_rate"].tolist()
-    df = df.drop(columns=["_sens_rate", "_spec_rate"])
 
     if not show_credible_intervals:
         df = df.drop(
-            columns=[c for c in df.columns if "Beta-Bin" in c],
+            columns=[c for c in df.columns if "CrI" in c],
             errors="ignore",
         )
 
-    def _style_row(row: pd.Series) -> list[str]:
-        # Apply per-row colour tint to the Sensitivity / Specificity cells.
-        styles = ["" for _ in row.index]
-        for col_idx, col in enumerate(row.index):
-            if col == "Catch rate (sensitivity)":
-                styles[col_idx] = _tint_for_rate(sens_raw[row.name])
-            elif col == "False-alarm control (specificity)":
-                styles[col_idx] = _tint_for_rate(spec_raw[row.name])
-        return styles
-
-    styled = df.style.apply(_style_row, axis=1)
-    st.dataframe(styled, hide_index=True, width="stretch")
+    st.dataframe(df, hide_index=True, width="stretch")
 
     if caption:
         st.caption(caption)
@@ -173,14 +134,15 @@ def render_sens_spec_kpi_strip(
 ) -> None:
     """Compact two-metric KPI strip used by Threshold Tuning's headline row.
 
-    ``delta_*`` are signed deltas vs the baseline (positive = improvement);
+    ``delta_*`` are signed deltas vs the baseline (not clinical improvements);
     we surface them through ``st.metric``'s native delta affordance.
     """
     cols = st.columns(2)
     with cols[0]:
         st.metric(
-            f"{label} catch rate",
+            f"{label} safety-probe routed",
             _format_rate(sens_rate),
+            delta_color="off",
             delta=(
                 f"{delta_sens * 100:+.1f} pts"
                 if delta_sens is not None
@@ -189,8 +151,9 @@ def render_sens_spec_kpi_strip(
         )
     with cols[1]:
         st.metric(
-            f"{label} false-alarm control",
+            f"{label} other answers cleared",
             _format_rate(spec_rate),
+            delta_color="off",
             delta=(
                 f"{delta_spec * 100:+.1f} pts"
                 if delta_spec is not None

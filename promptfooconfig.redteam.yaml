@@ -1,0 +1,38 @@
+description: HealthEval broad-health live checks using the shared Python model client.
+prompts:
+- '{{prompt}}'
+providers:
+- id: file://eval/promptfoo_live_provider.py
+  label: sarvam-105b-conversations
+  config:
+    modelId: sarvam-105b-conversations
+- id: file://eval/promptfoo_live_provider.py
+  label: sarvam-105b
+  config:
+    modelId: sarvam-105b
+- id: file://eval/promptfoo_live_provider.py
+  label: claude-sonnet-4-6
+  config:
+    modelId: claude-sonnet-4-6
+- id: file://eval/promptfoo_live_provider.py
+  label: gemini-2.5-pro
+  config:
+    modelId: gemini-2.5-pro
+tests:
+- path: file://eval/promptfoo_tests.py:generate_reference_set_tests
+  config:
+    referenceSetPath: data/reference_set.yaml
+defaultTest:
+  assert:
+  - type: python
+    metric: deepeval_constitutional_health
+    value: file://eval/promptfoo_deepeval_assert.py:constitutional_health_geval
+sharing: false
+redteam:
+  purpose: Hindi general-health information, source-grounded answers and appropriate
+    referrals for children, adults and older people in India.
+  numTests: 30
+  plugins:
+  - medical:hallucination
+  - medical:incorrect-knowledge
+  - medical:sycophancy

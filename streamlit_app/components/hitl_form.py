@@ -33,8 +33,10 @@ from typing import Any, Mapping
 
 import streamlit as st
 
+from eval.reference_risk import reference_risk_label
 from streamlit_app.config import (
     CANONICAL_FAILURE_CATEGORIES,
+    CERAI_DB_SCORE_CUTOFF,
     HITL_COMMENT_MAX_CHARS,
     HITL_PROMOTE_REASONING_MAX_CHARS,
 )
@@ -53,7 +55,7 @@ HUMAN_DECISION_OPTIONS: tuple[str, ...] = (
 REVIEWER_ROLE_OPTIONS: tuple[str, ...] = ("developer", "clinician", "panel", "other")
 
 EVALUATOR_TARGETS: tuple[str, ...] = (
-    "maaswasth_safety_method",
+    "healtheval_safety_method",
     "cerai",
     "inspect",
 )
@@ -76,10 +78,21 @@ _HUMAN_DECISION_LABEL: dict[str, str] = {
 }
 
 _EVALUATOR_TARGET_LABEL: dict[str, str] = {
-    "maaswasth_safety_method": "MaaSwasth Safety Method",
+    "healtheval_safety_method": "HealthEval Safety Method",
     "cerai": "CeRAI",
     "inspect": "Inspect scorer",
 }
+
+_LEADING_THINK_RE = re.compile(r"^\s*<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+_TRIAGE_BLOCK_RE = re.compile(
+    r"```(?:json)?\s*\{.*?\"triage_label\".*?\}\s*```\s*",
+    re.DOTALL,
+)
+
+
+def _visible_response_text(response: str) -> str:
+    text = _LEADING_THINK_RE.sub("", response or "", count=1)
+    return _TRIAGE_BLOCK_RE.sub("", text, count=1).strip()
 
 
 def _human_decision_label(value: str) -> str:
@@ -100,11 +113,9 @@ def _route_reason_label(reason: str) -> str:
         score = parts[2] if len(parts) > 2 else "high"
         return f"Judge jury disagreed strongly ({score})"
     labels = {
-        "parse_failed": "Triage JSON did not parse",
-        "cerai_vs_methodology_disagree": "CeRAI disagreed with MaaSwasth Safety Method",
-        "inspect_vs_methodology_disagree": "Inspect scorer disagreed with MaaSwasth Safety Method",
+        "cerai_vs_methodology_disagree": "CeRAI DB score disagreed with HealthEval Safety Method",
+        "inspect_vs_methodology_disagree": "Inspect scorer disagreed with HealthEval Safety Method",
         "expected_urgent": "Reference expected urgent referral",
-        "model_GREEN_for_expected_violation": "Model said GREEN despite expected referral",
         "near_threshold": "Score was near a decision threshold",
     }
     return labels.get(reason, reason.replace("_", " "))
@@ -131,18 +142,63 @@ def _evaluator_safety_label(decision_dict: Mapping[str, Any] | None) -> str:
     return "unsafe" if flagged else "safe"
 
 
+def _format_score(value: Any, digits: int = 2) -> str:
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return "?"
+
+
+def _render_automated_decision(name: str, decision: Mapping[str, Any] | None) -> None:
+    st.markdown(f"`{name}`")
+    if name == "healtheval_safety_method":
+        verdict = _evaluator_safety_label(decision)
+        tag = "🚩 needs review" if verdict == "unsafe" else "✅ passes"
+        st.markdown(f"**{tag}**")
+        if decision is not None and decision.get("jury_safety_mean") is not None:
+            st.caption(f"jury_mean = {_format_score(decision['jury_safety_mean'])}")
+        return
+
+    if name == "cerai":
+        scores = dict((decision or {}).get("db_scores") or {})
+        st.markdown(f"**DB mean score = {_format_score(scores.get('mean'))}**")
+        st.caption(
+            "accuracy = "
+            f"{_format_score(scores.get('accuracy'))} · relevance = "
+            f"{_format_score(scores.get('relevance'))} · hallucination = "
+            f"{_format_score(scores.get('hallucination'))} · cutoff = "
+            f"{CERAI_DB_SCORE_CUTOFF:.2f}"
+        )
+        return
+
+    if name == "inspect":
+        st.markdown(
+            "**composite score = "
+            f"{_format_score((decision or {}).get('composite_score'))}**"
+        )
+        st.caption(
+            "refusal = "
+            f"{_format_score((decision or {}).get('refusal_correct'))} · red-flag recall = "
+            f"{_format_score((decision or {}).get('red_flag_recall'))}"
+        )
+        return
+
+    verdict = _evaluator_safety_label(decision)
+    st.markdown(f"**{'needs review' if verdict == 'unsafe' else 'passes'}**")
+
+
 def render_hitl_form(
     *,
     prompt_id: str,
-    rubric_version: str = "mnh_safety_v1",
+    rubric_version: str = "health_safety_v1",
     failure_categories: list[str] | None = None,
     calibration_example_ids: list[str] | None = None,
-    maaswasth_decision: Mapping[str, Any] | None = None,
+    healtheval_decision: Mapping[str, Any] | None = None,
     cerai_decision: Mapping[str, Any] | None = None,
     inspect_decision: Mapping[str, Any] | None = None,
     auto_route_reasons: list[str] | None = None,
     expected_safety_action: str | None = None,
-    expected_triage_label: str | None = None,
+    reference_risk_tier: str | None = None,
     panel_response_excerpt: str | None = None,
     persistence_mode_label: str = "session_local",
 ) -> dict[str, Any] | None:
@@ -174,15 +230,15 @@ def render_hitl_form(
 
     # Panel response excerpt + ground truth (read-only) — keeps reviewers
     # anchored to what the model actually said before they fill the form.
-    meta_cols = st.columns([1, 1, 2])
+    meta_cols = st.columns([1, 1, 1, 2])
     with meta_cols[0]:
-        st.markdown(
-            f"**Reference answer:** `{expected_triage_label or '?'}` "
-            f"({expected_safety_action or '?'})"
-        )
+        st.markdown(f"**Reference action:** `{expected_safety_action or '?'}`")
     with meta_cols[1]:
-        st.markdown(f"**Rubric:** `{rubric_version}`")
+        risk_label = reference_risk_label(reference_risk_tier) if reference_risk_tier else "?"
+        st.markdown(f"**Reference risk:** `{risk_label}`")
     with meta_cols[2]:
+        st.markdown(f"**Rubric:** `{rubric_version}`")
+    with meta_cols[3]:
         mode_label = (
             "Repo saving enabled"
             if persistence_mode_label == "github_api"
@@ -192,11 +248,11 @@ def render_hitl_form(
 
     if panel_response_excerpt:
         with st.expander("Model response excerpt", expanded=False):
-            st.markdown(panel_response_excerpt[:1200])
+            st.markdown(_visible_response_text(panel_response_excerpt)[:1200])
     st.markdown("**Automated decisions (read-only)**")
     eval_cols = st.columns(3)
     eval_specs = [
-        ("maaswasth_safety_method", maaswasth_decision),
+        ("healtheval_safety_method", healtheval_decision),
         ("cerai", cerai_decision),
         ("inspect", inspect_decision),
     ]
@@ -205,14 +261,7 @@ def render_hitl_form(
         verdict = _evaluator_safety_label(decision)
         original_eval_payload[name] = verdict
         with col:
-            tag = "🚩 needs review" if verdict == "unsafe" else "✅ treated as safe"
-            st.markdown(f"`{name}`")
-            st.markdown(f"**{tag}**")
-            if decision is not None:
-                if "triage_label" in decision:
-                    st.caption(f"triage = `{decision.get('triage_label')}`")
-                if "jury_safety_mean" in decision and decision["jury_safety_mean"] is not None:
-                    st.caption(f"jury_mean = {decision['jury_safety_mean']:.2f}")
+            _render_automated_decision(name, decision)
     with st.form(key=form_key, clear_on_submit=False):
         reviewer_role = st.selectbox(
             "Reviewer role",
@@ -234,7 +283,7 @@ def render_hitl_form(
         )
 
         targets_default = (
-            ["maaswasth_safety_method"]
+            ["healtheval_safety_method"]
             if human_decision in {"correct", "incorrect"}
             else list(EVALUATOR_TARGETS)
         )
@@ -247,7 +296,7 @@ def render_hitl_form(
             help=(
                 "Select which evaluator output this human verdict is judging. "
                 "Use multiple targets when the same verdict applies to both "
-                "the MaaSwasth Safety Method and another evaluator."
+                "the HealthEval Safety Method and another evaluator."
             ),
         )
 
@@ -333,6 +382,7 @@ def render_hitl_form(
     record: dict[str, Any] = {
         "review_id": f"hitl-{prompt_id}-{int(time.time())}",
         "prompt_id": prompt_id,
+        "reference_risk_tier": reference_risk_tier,
         "reviewer_role": reviewer_role,
         "original_evaluators": original_eval_payload,
         "human_decision": human_decision,

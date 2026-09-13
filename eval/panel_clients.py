@@ -1,9 +1,9 @@
 """Direct panel-model clients used by the offline runner and Streamlit demo.
 
 The measured panel is the four API-backed models in ``data/model_panel.yaml``:
-Sarvam 30B, Sarvam 105B, Claude Sonnet 4.6, and Gemini 2.5 Pro.  This module
+Sarvam 105B Conversations, Sarvam 105B, Claude Sonnet 4.6, and Gemini 2.5 Pro.  This module
 intentionally does not route through the legacy browser/comparator paths; every
-call is a normal vendor API request under the shared MaaSwasth system prompt.
+call is a normal vendor API request under the shared HealthEval system prompt.
 """
 
 from __future__ import annotations
@@ -18,22 +18,22 @@ import httpx
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SYSTEM_PROMPT_PATH = REPO_ROOT / "data" / "system_prompt_mnh.yaml"
+SYSTEM_PROMPT_PATH = REPO_ROOT / "data" / "system_prompt_health.yaml"
 MODEL_PANEL_PATH = REPO_ROOT / "data" / "model_panel.yaml"
 
 SARVAM_API_MODEL_BY_PANEL_ID: Mapping[str, str] = {
-    "sarvam-30b": "sarvam-m",
+    "sarvam-105b-conversations": "sarvam-105b-conversations",
     "sarvam-105b": "sarvam-105b",
 }
 
 PANEL_MODEL_IDS: tuple[str, ...] = (
-    "sarvam-30b",
+    "sarvam-105b-conversations",
     "sarvam-105b",
     "claude-sonnet-4-6",
     "gemini-2.5-pro",
 )
 
-DEFAULT_LIVE_PANEL_MODEL_ID = "sarvam-105b"
+DEFAULT_LIVE_PANEL_MODEL_ID = "sarvam-105b-conversations"
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ class PanelResponse:
 
 
 def load_system_prompt() -> str:
-    """Load the shared Hindi MNH system prompt from YAML."""
+    """Load the shared Hindi health system prompt from YAML."""
     with SYSTEM_PROMPT_PATH.open(encoding="utf-8") as fh:
         doc = yaml.safe_load(fh) or {}
     prompt = doc.get("system_prompt") or doc.get("prompt") or ""
@@ -84,9 +84,15 @@ def required_env_vars(model_ids: list[str] | tuple[str, ...]) -> set[str]:
 
 def validate_panel_env(model_ids: list[str] | tuple[str, ...]) -> None:
     """Raise when any selected model's required key is absent."""
-    missing = sorted(name for name in required_env_vars(model_ids) if not os.getenv(name))
+    missing = sorted(name for name in required_env_vars(model_ids)
+                     if not (google_api_key() if name == "GOOGLE_API_KEY" else os.getenv(name)))
     if missing:
         raise RuntimeError(f"Missing required env vars for panel run: {', '.join(missing)}")
+
+
+def google_api_key() -> str | None:
+    """Accept either documented Google SDK environment variable."""
+    return os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
 
 def _call_sarvam(model_id: str, system_prompt: str, user_prompt: str) -> str:
@@ -106,6 +112,7 @@ def _call_sarvam(model_id: str, system_prompt: str, user_prompt: str) -> str:
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0.0,
+                "reasoning_effort": None,
                 "max_tokens": 2048,
             },
         )
@@ -134,17 +141,28 @@ def _call_google(system_prompt: str, user_prompt: str) -> str:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    client = genai.Client(api_key=google_api_key())
     resp = client.models.generate_content(
         model="gemini-2.5-pro",
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
-            max_output_tokens=2048,
+            max_output_tokens=4096,
+            thinking_config=types.ThinkingConfig(thinking_budget=512, include_thoughts=False),
             temperature=0.0,
         ),
     )
     return getattr(resp, "text", "") or ""
+
+
+def model_generation_config(model_id: str) -> dict:
+    """Record decoding settings alongside measured responses."""
+    settings = {"temperature": 0.0, "max_output_tokens": 2048}
+    if model_id.startswith("sarvam-"):
+        settings["reasoning_effort"] = None
+    elif model_id == "gemini-2.5-pro":
+        settings.update(max_output_tokens=4096, thinking_budget=512)
+    return settings
 
 
 def call_panel_model(model_id: str, system_prompt: str, user_prompt: str) -> PanelResponse:

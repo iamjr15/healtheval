@@ -1,7 +1,7 @@
 [project]
-name = "maaswasth-eval"
+name = "healtheval"
 version = "0.1.0"
-description = "MaaSwasth Eval Harness — Path B critique-and-rebuild evaluator for Hindi maternal and newborn health chatbot safety."
+description = "HealthEval Eval Harness — Evaluation and review tools for Hindi health chatbot safety."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = { text = "Apache-2.0" }

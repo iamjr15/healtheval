@@ -1,7 +1,7 @@
 """Devanagari × Roman × Hinglish-mixed consistency battery (the script-variance check).
 
 Source: Khullar et al. 2025 (arXiv:2512.10780) — Hindi-Roman vs
-Hindi-Devanagari script gap up to 24 pts in MNH triage; 83% of real
+Hindi-Devanagari script gap up to 24 pts in health triage; 83% of real
 Indian users use Romanized Hindi rather than Devanagari.
 
 This module's contract:
@@ -143,12 +143,12 @@ def _devanagari_to_hinglish_mixed_naive(text: str) -> str:
     # Insert a few canonical English clinical anchors so the variant
     # actually reads as code-mixed rather than fully romanised.
     substitutions = [
-        (r"\bgarbh\b", "pregnancy"),
+        (r"\bsvaasthya\b", "health"),
         (r"\bdard\b", "pain"),
         (r"\bbukhaar\b", "fever"),
         (r"\bkhoon\b", "blood"),
         (r"\bbachcha\b", "baby"),
-        (r"\bprasav\b", "delivery"),
+        (r"\bdavaa\b", "medicine"),
     ]
     for pat, repl in substitutions:
         roman = re.sub(pat, repl, roman, flags=re.IGNORECASE)

@@ -175,7 +175,7 @@ def load_validated_rubric_packs(
     """Read + validate every ``*_{version}.yaml`` in ``rubrics_dir``.
 
     Returns a dict keyed by ``"<metric>_<version>"`` (e.g.,
-    ``"mnh_safety_v1"``) so the caller can join against the canonical
+    ``"health_safety_v1"``) so the caller can join against the canonical
     list in ``config.RUBRIC_PACKS_V1``.  Raises on the first invalid pack.
     """
     base = Path(rubrics_dir) if rubrics_dir else RUBRICS_DIR

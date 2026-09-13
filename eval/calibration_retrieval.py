@@ -16,8 +16,7 @@ same metric.  The retriever still logs the cosine score so reviewers
 can audit how often the cold-start branch fires.
 
 Implementation choice: scikit-learn's ``TfidfVectorizer`` + cosine
-similarity.  Works fine for the n≈6 → n≈100 range we expect over the
-submission window; if the calibration pool grows past ~10⁴ examples
+similarity.  Works fine for a small calibration pool of n≈6 → n≈100 examples; if the calibration pool grows past ~10⁴ examples
 we'd want to swap in a faiss / pgvector index, but that's out of scope.
 """
 from __future__ import annotations
@@ -121,7 +120,7 @@ def retrieve_examples(
     prompt:
         The panel prompt being judged.  Used as the query string.
     metric:
-        Rubric pack metric name (``mnh_safety``, ``factuality``,
+        Rubric pack metric name (``health_safety``, ``factuality``,
         ``limitation_awareness``, ``triage_schema``).  Required —
         passing the wrong metric here would surface anchors with the
         wrong rubric, defeating the purpose of retrieval.
@@ -233,8 +232,10 @@ def render_examples_block(hits: Sequence[RetrievalHit]) -> str:
             f"## Anchor {i} — id={ex.get('id', '?')} score≈{hit.score:.3f}{marker}\n"
             f"Prompt: {ex.get('prompt', '').strip()}\n"
             f"Actual answer: {ex.get('actual_answer', '').strip()}\n"
-            f"Human score: {ex.get('human_score', '?')}\n"
-            f"Reason: {(ex.get('human_reason') or '').strip()}"
+            f"{'Human score' if ex.get('human_score') is not None else 'Draft reference score'}: "
+            f"{ex.get('human_score', ex.get('reference_score', '?'))}\n"
+            f"Review status: {ex.get('review_status', 'human-reviewed')}\n"
+            f"Reason: {(ex.get('human_reason') or ex.get('reference_reason') or '').strip()}"
         )
     return "\n\n".join(chunks)
 

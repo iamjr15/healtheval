@@ -9,7 +9,7 @@ This is the round-2 follow-up gate (per team-lead) that proves:
      through `data.schemas.FindingsSchema` losslessly.
 
   2. The schema-first JSON contract `{triage_label, referral_action,
-     red_flags_detected}` declared in `data/system_prompt_mnh.yaml`
+     red_flags_detected, triage_reason}` declared in `data/system_prompt_health.yaml`
      matches the enum membership + field set of `data.schemas.TriageOutput`
      and the corresponding fields on `data.schemas.FindingsItem`. Under
      the schema-first triage contract, parse failures count as wrong, so this consistency
@@ -47,7 +47,7 @@ def schemas():
 
 @pytest.fixture(scope="module")
 def system_prompt_doc(repo_root: Path) -> dict:
-    p = repo_root / "data" / "system_prompt_mnh.yaml"
+    p = repo_root / "data" / "system_prompt_health.yaml"
     if not p.exists():
         pytest.skip(f"data-spec hasn't shipped {p.relative_to(repo_root)} yet")
     with p.open(encoding="utf-8") as fh:
@@ -77,10 +77,10 @@ def _full_findings_payload() -> dict:
         "plan_version": "current",
         "items": [
             {
-                "model_id": "sarvam-30b",
-                "prompt_id": "hand-001",
+                "model_id": "sarvam-105b-conversations",
+                "prompt_id": "health-001",
                 "triage_label_predicted": "RED",
-                "referral_action_predicted": "refer_mch_emergency",
+                "referral_action_predicted": "refer_emergency",
                 "triage_parse_succeeded": True,
                 "response_text": "गर्भावस्था में रक्तस्राव — तुरंत 108 पर कॉल करें।",
                 "latency_ms": 1234.5,
@@ -91,7 +91,7 @@ def _full_findings_payload() -> dict:
                         "judge_model_id": "claude-sonnet-4-6",
                         "principle_id": 1,
                         "score": 4.5,
-                        "rationale": "Cited WHO ANC 2016; correct dose for IFA.",
+                        "rationale": "Cited WHO health guidance; correct dose for IFA.",
                         "self_judging_dropped": False,
                     },
                     {
@@ -179,7 +179,7 @@ def test_full_findings_payload_round_trips(schemas):
     # Spot-check a few fields survived the round trip.
     item = redo.items[0]
     assert str(item.triage_label_predicted.value) == "RED"
-    assert str(item.referral_action_predicted.value) == "refer_mch_emergency"
+    assert str(item.referral_action_predicted.value) == "refer_emergency"
     assert item.triage_parse_succeeded is True
     assert len(item.judges) == 3
     # HEALTH-PARIKSHA self-judging avoidance flag survives serialization.
@@ -188,9 +188,9 @@ def test_full_findings_payload_round_trips(schemas):
     assert 0.0 <= item.beta_binomial_ci[0].cred_low_95 <= 1.0
     assert -1.0 <= float(item.krippendorff_alpha) <= 1.0
     assert {s.stratum for s in item.equity_strata} == {"devanagari", "roman"}
-# Test 2 — system_prompt_mnh.yaml ↔ TriageOutput / FindingsItem consistency
+# Test 2 — system_prompt_health.yaml ↔ TriageOutput / FindingsItem consistency
 def test_system_prompt_output_schema_matches_triage_contract(schemas, system_prompt_doc):
-    """The `output_schema:` block in `data/system_prompt_mnh.yaml` is the
+    """The `output_schema:` block in `data/system_prompt_health.yaml` is the
     contract every panel model is told to emit. Its enum members and
     field names MUST line up with `data.schemas.TriageOutput` and with
     the `triage_label_predicted` / `referral_action_predicted` fields on
@@ -200,23 +200,28 @@ def test_system_prompt_output_schema_matches_triage_contract(schemas, system_pro
     This test enforces the consistency in both directions.
     """
     out = system_prompt_doc.get("output_schema")
-    assert isinstance(out, dict), "system_prompt_mnh.yaml must declare an `output_schema:` mapping"
+    assert isinstance(out, dict), "system_prompt_health.yaml must declare an `output_schema:` mapping"
     declared_fields = set(out.keys())
-    expected_fields = {"triage_label", "referral_action", "red_flags_detected"}
+    expected_fields = {
+        "triage_label",
+        "referral_action",
+        "red_flags_detected",
+        "triage_reason",
+    }
     assert declared_fields == expected_fields, (
         f"system_prompt output_schema field set drift — declared {declared_fields}, "
-        f"expected {expected_fields} (the triage and rubric contract + the shared MNH system prompt)."
+        f"expected {expected_fields} (the triage and rubric contract + the shared health system prompt)."
     )
     declared_triage = set(out["triage_label"])
     schema_triage = {m.value for m in schemas.TriageLabel}
     assert declared_triage == schema_triage, (
-        f"triage_label enum drift between system_prompt_mnh.yaml ({declared_triage}) "
+        f"triage_label enum drift between system_prompt_health.yaml ({declared_triage}) "
         f"and data.schemas.TriageLabel ({schema_triage})."
     )
     declared_referral = set(out["referral_action"])
     schema_referral = {m.value for m in schemas.ReferralAction}
     assert declared_referral == schema_referral, (
-        f"referral_action enum drift between system_prompt_mnh.yaml "
+        f"referral_action enum drift between system_prompt_health.yaml "
         f"({declared_referral}) and data.schemas.ReferralAction ({schema_referral})."
     )
     rfd = out["red_flags_detected"]
@@ -225,6 +230,9 @@ def test_system_prompt_output_schema_matches_triage_contract(schemas, system_pro
     assert rfd in ("list[str]", "List[str]") or (
         isinstance(rfd, list) and all(isinstance(x, str) for x in rfd)
     ), f"red_flags_detected must be a list-of-string declaration; got {rfd!r}"
+    assert out["triage_reason"] == "str", (
+        f"triage_reason must be declared as a short string; got {out['triage_reason']!r}"
+    )
     findings_fields = set(schemas.FindingsItem.model_fields.keys())
     # The two prediction fields are how the harness writes the panel
     # model's emitted triage block back into findings.json.

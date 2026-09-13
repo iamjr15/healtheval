@@ -13,9 +13,9 @@ module sits on top and provides:
 * ``unique_field_values()`` — populate the sidebar selectors without
   hard-coding what's currently in the file.
 * ``summarise_traces()`` — aggregate stats (per-judge call counts +
-  avg duration, per-principle call counts + avg duration, parser-version
-  breakdown v3 vs v1_fallback with %, calibration retrieval coverage %)
-  for the "Trace summary" section at the top of Page 8.
+  avg duration, per-principle call counts + avg duration, calibration
+  retrieval coverage %) for the "Trace summary" section at the top of
+  Page 8.
 
 Per the shipped workbench design the audit-trace page + the audit-trace design: this page MUST gracefully render the
 "v3 trace data pending" banner when the file is missing.  Every
@@ -51,8 +51,6 @@ class TraceSummary(TypedDict):
     total_rows: int
     per_judge: dict[str, GroupStats]
     per_principle: dict[str, GroupStats]
-    parser_breakdown: dict[str, int]
-    parser_pct: dict[str, float]
     calibration_coverage_pct: float
     n_calls_with_calibration: int
     avg_duration_sec: float | None
@@ -195,10 +193,6 @@ def summarise_traces(
       ``"unknown"`` when the field is missing).
     * ``per_principle`` — keyed on ``str(principle_id)`` so the
       Streamlit metric cards can render the key directly.
-    * ``parser_breakdown`` / ``parser_pct`` — count + %-of-total for
-      every distinct ``parser_version`` value, plus an explicit
-      ``"unknown"`` bucket for rows missing the field (legacy / partial
-      writes).  Percentages are rounded to two decimal places.
     * ``calibration_coverage_pct`` — % of rows whose
       ``calibration_example_ids`` is a non-empty list.  Rows missing
       the field count toward the denominator (zero retrieval).
@@ -209,7 +203,6 @@ def summarise_traces(
     total_rows = 0
     per_judge: dict[str, dict[str, Any]] = defaultdict(_new_group)
     per_principle: dict[str, dict[str, Any]] = defaultdict(_new_group)
-    parser_breakdown: dict[str, int] = defaultdict(int)
     n_with_calibration = 0
     overall_total_duration = 0.0
     overall_n_with_duration = 0
@@ -231,9 +224,6 @@ def summarise_traces(
             per_principle[principle_key]["total_duration_sec"] += duration
             per_principle[principle_key]["n_with_duration"] += 1
 
-        parser = str(row.get("parser_version") or "unknown")
-        parser_breakdown[parser] += 1
-
         cal_ids = row.get("calibration_example_ids")
         if isinstance(cal_ids, list) and cal_ids:
             n_with_calibration += 1
@@ -241,11 +231,6 @@ def summarise_traces(
         if duration is not None:
             overall_total_duration += duration
             overall_n_with_duration += 1
-
-    parser_pct: dict[str, float] = {}
-    if total_rows:
-        for k, v in parser_breakdown.items():
-            parser_pct[k] = round((v / total_rows) * 100.0, 2)
 
     coverage_pct = (
         round((n_with_calibration / total_rows) * 100.0, 2) if total_rows else 0.0
@@ -261,8 +246,6 @@ def summarise_traces(
         "total_rows": total_rows,
         "per_judge": {k: _finalise_group(g) for k, g in per_judge.items()},
         "per_principle": {k: _finalise_group(g) for k, g in per_principle.items()},
-        "parser_breakdown": dict(parser_breakdown),
-        "parser_pct": parser_pct,
         "calibration_coverage_pct": coverage_pct,
         "n_calls_with_calibration": n_with_calibration,
         "avg_duration_sec": avg_duration,

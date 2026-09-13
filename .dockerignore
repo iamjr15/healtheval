@@ -12,3 +12,8 @@ report/_site/
 .deepeval
 .promptfoo
 data/.cache
+
+node_modules
+.dev.vars
+.env.*
+.wrangler

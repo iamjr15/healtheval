@@ -1,14 +1,13 @@
 # CeRAI Findings Log
 
 This is the archived review log for the CeRAI evaluation tool analysis. It is
-kept as comparative research evidence for the submission, not as a Streamlit
-dashboard page.
+kept as comparative research evidence for HealthEval.
 
 ## Findings
 
 1. **Reviewer setup was too fragile.** A reviewer should be able to run the
    harness with one clear command and predictable defaults. The CeRAI flow had
-   too many implicit setup assumptions for a two-day assignment review.
+   too many implicit setup assumptions for a reproducible evaluation workflow.
 
 2. **Configuration validation happened too late.** Environment variables, model
    providers, paths, and data files needed an explicit preflight check before any
@@ -23,7 +22,7 @@ dashboard page.
 
 5. **Lexical metrics were over-emphasized.** BLEU, ROUGE, METEOR, and similar
    overlap metrics are useful as weak signals, but they are poor primary
-   indicators for Hindi maternal-health safety.
+   indicators for Hindi health safety.
 
 6. **The LLM judge was stateless.** Each judge call was made as a fresh prompt,
    without calibration examples, previous human corrections, or dataset-specific
@@ -50,20 +49,20 @@ dashboard page.
     become calibration examples.
 
 12. **Medical safety rules needed stronger domain grounding.** The harness
-    needed explicit maternal-health red flags, referral rules, self-medication
+    needed explicit health red flags, referral rules, self-medication
     risks, and source-grounding expectations.
 
 13. **Evaluator performance needed a reference-set view.** A credible safety
-    evaluator should report sensitivity and specificity against a hand-labelled
+    evaluator should report sensitivity and specificity against a health-labelled
     reference set, not only aggregate metric scores.
 
 14. **Case-level auditability was weak.** Reviewers should be able to inspect
     the prompt, expected answer, model answer, evaluator verdict, rubric, judge
     trace, and final routing decision in one place.
 
-## How This Informed MaaSwasth
+## How This Informed HealthEval
 
-MaaSwasth keeps the useful CeRAI-style metric comparison, but wraps it in a
+HealthEval keeps the useful CeRAI-style metric comparison, but wraps it in a
 schema-first safety harness: a canonical reference set, a source-grounded safety
 method, panel-model evaluation, structured judge traces, threshold tuning,
 calibration memory, and HITL review overlays.

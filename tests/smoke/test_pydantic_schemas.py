@@ -1,7 +1,7 @@
 """Smoke (a): Pydantic schemas import + the real shipped YAML configs
 validate against them.
 
-the prompt-set contract / the shared MNH system prompt / the reproducibility gate — `data/schemas.py` is owned by Teammate B
+the prompt-set contract / the shared health system prompt / the reproducibility gate — `data/schemas.py` is owned by Teammate B
 (data-spec). When data-spec ships their schemas alongside their YAML
 configs, those configs MUST round-trip through the schemas — that is
 the Datasheets-for-Datasets reproducibility contract (Gebru CACM 2021,
@@ -59,11 +59,11 @@ def test_prompts_yaml_validates_against_schema(repo_root):
     assert Prompts is not None
     doc = _load_yaml(repo_root, "prompts.yaml")
     obj = Prompts(**doc)
-    # the prompt-set contract: ≥30 hand-written prompts (`hand-NNN`) — schema enforces
+    # the prompt-set contract: ≥30 health-written prompts (`health-NNN`) — schema enforces
     # this, but we re-assert the count here so the smoke gate diagnostic
     # is one line, not a buried Pydantic error.
-    hand = [p for p in obj.prompts if p.id.startswith("hand-")]
-    assert len(hand) >= 30, f"expected ≥30 hand-written prompts, got {len(hand)}"
+    hand = [p for p in obj.prompts if p.id.startswith("health-")]
+    assert len(hand) >= 30, f"expected ≥30 health-written prompts, got {len(hand)}"
 
 
 @pytest.mark.xfail(
@@ -84,7 +84,7 @@ def test_model_panel_yaml_validates_against_schema(repo_root):
         if getattr(m.dispatch_type, "value", str(m.dispatch_type)) == "API"
     }
     required_current = {
-        "sarvam-30b", "sarvam-105b", "claude-sonnet-4-6", "gemini-2.5-pro",
+        "sarvam-105b-conversations", "sarvam-105b", "claude-sonnet-4-6", "gemini-2.5-pro",
     }
     # Accept hyphen/period drift in the Claude/Gemini ids — the canonical
     # token set is what matters for the smoke gate.

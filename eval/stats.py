@@ -1,4 +1,4 @@
-"""Statistical layer for the MaaSwasth eval harness (statistical utilities and confidence-interval reporting).
+"""Statistical layer for the HealthEval eval harness (statistical utilities and confidence-interval reporting).
 
 This module is intentionally thin: it wraps four well-vetted libraries
 (``scipy``, ``statsmodels``, ``krippendorff``, plus a closed-form
@@ -67,7 +67,7 @@ def paired_bootstrap_ci(
 
     Uses :func:`scipy.stats.bootstrap` with method ``"BCa"`` (bias-corrected
     accelerated) which is the Miller 2024 recommendation for small-to-medium
-    n typical of MaaSwasth (n=30 reference set, n=60 equity subset).
+    n typical of HealthEval (n=30 reference set, n=60 equity subset).
 
     Parameters
     ----------
@@ -97,6 +97,10 @@ def paired_bootstrap_ci(
         # point estimate with a zero-width interval and surface n=… so the
         # report caption is still correct.
         point = float(arr.mean()) if n == 1 else float("nan")
+        return CIReport(point, point, point, n, "paired-bootstrap-degenerate")
+
+    if np.all(arr == arr[0]):
+        point = float(arr[0])
         return CIReport(point, point, point, n, "paired-bootstrap-degenerate")
 
     # Lazy import keeps module-level import-cost low for callers that only
@@ -140,7 +144,7 @@ def krippendorff_alpha(
     level_of_measurement:
         ``"nominal"`` / ``"ordinal"`` / ``"interval"`` / ``"ratio"``.
         Default ``"interval"`` matches the 0-1 axis scoring used by the
-        Constitutional MNH rubric.
+        Constitutional health rubric.
 
     Returns
     -------
@@ -223,7 +227,7 @@ def beta_binomial_credible_interval(
     credible interval is the equal-tailed interval of that posterior.  Per
     Qu et al. *BetaConform* (NeurIPS 2025, OpenReview SsHCyEBMLz), this is
     provably tighter than the paired bootstrap for n<50, which is exactly
-    the n=30 reference-set and n=20 minimum-viable regime MaaSwasth ships
+    the n=30 reference-set and n=20 minimum-viable regime HealthEval ships
     in (the confidence-interval reporting contract).
 
     Parameters

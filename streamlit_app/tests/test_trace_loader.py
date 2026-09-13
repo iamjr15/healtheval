@@ -24,7 +24,7 @@ def _row(**kwargs):
         "prompt_id": "ref-001",
         "judge_model": "gemini-2.5-pro",
         "principle_id": 3,
-        "rubric_version": "mnh_safety_v1",
+        "rubric_version": "health_safety_v1",
         "score": 4.5,
     }
     base.update(kwargs)
@@ -101,8 +101,6 @@ def test_summarise_empty_returns_zero_state() -> None:
     assert summary["total_rows"] == 0
     assert summary["per_judge"] == {}
     assert summary["per_principle"] == {}
-    assert summary["parser_breakdown"] == {}
-    assert summary["parser_pct"] == {}
     assert summary["calibration_coverage_pct"] == 0.0
     assert summary["n_calls_with_calibration"] == 0
     assert summary["avg_duration_sec"] is None
@@ -110,9 +108,9 @@ def test_summarise_empty_returns_zero_state() -> None:
 
 def test_summarise_per_judge_counts_and_avg_duration() -> None:
     rows = [
-        _row(judge_model="gemini-2.5-pro", duration_sec=1.0, parser_version="v3"),
-        _row(judge_model="gemini-2.5-pro", duration_sec=3.0, parser_version="v3"),
-        _row(judge_model="sonnet-4-6", duration_sec=2.0, parser_version="v3"),
+        _row(judge_model="gemini-2.5-pro", duration_sec=1.0),
+        _row(judge_model="gemini-2.5-pro", duration_sec=3.0),
+        _row(judge_model="sonnet-4-6", duration_sec=2.0),
     ]
     summary = summarise_traces(rows=rows)
     assert summary["total_rows"] == 3
@@ -137,29 +135,9 @@ def test_summarise_per_principle_groups_by_principle_id() -> None:
     assert summary["per_principle"]["8"]["count"] == 1
 
 
-def test_summarise_parser_breakdown_with_percentages() -> None:
-    rows = [
-        _row(parser_version="v3"),
-        _row(parser_version="v3"),
-        _row(parser_version="v3"),
-        _row(parser_version="v1_fallback"),
-    ]
-    summary = summarise_traces(rows=rows)
-    assert summary["parser_breakdown"] == {"v3": 3, "v1_fallback": 1}
-    assert summary["parser_pct"]["v3"] == 75.0
-    assert summary["parser_pct"]["v1_fallback"] == 25.0
-
-
-def test_summarise_treats_missing_parser_version_as_unknown() -> None:
-    rows = [_row(parser_version="v3"), {"prompt_id": "ref-002"}]
-    summary = summarise_traces(rows=rows)
-    assert summary["parser_breakdown"]["unknown"] == 1
-    assert summary["parser_pct"]["unknown"] == 50.0
-
-
 def test_summarise_calibration_coverage() -> None:
     rows = [
-        _row(calibration_example_ids=["cal-mnh-safety-001"]),
+        _row(calibration_example_ids=["cal-health-safety-001"]),
         _row(calibration_example_ids=[]),
         _row(),  # field absent entirely
         _row(calibration_example_ids=["cal-x", "cal-y"]),
@@ -207,16 +185,17 @@ def test_summarise_against_real_partial_trace_file(tmp_path: Path) -> None:
     """
     p = tmp_path / "trace.jsonl"
     p.write_text(
-        json.dumps(_row(judge_model="gemini-2.5-pro", duration_sec=1.0, parser_version="v3")) + "\n"
+        json.dumps(_row(judge_model="gemini-2.5-pro", duration_sec=1.0)) + "\n"
         + "{not valid json\n"
-        + json.dumps(_row(judge_model="sonnet-4-6", duration_sec=2.0, parser_version="v1_fallback")) + "\n"
+        + json.dumps(_row(judge_model="sonnet-4-6", duration_sec=2.0)) + "\n"
     )
     from streamlit_app.data_loaders import _read_jsonl
 
     rows = _read_jsonl(str(p), 0.0)
     summary = summarise_traces(rows=rows)
     assert summary["total_rows"] == 2
-    assert summary["parser_breakdown"] == {"v3": 1, "v1_fallback": 1}
+    assert summary["per_judge"]["gemini-2.5-pro"]["count"] == 1
+    assert summary["per_judge"]["sonnet-4-6"]["count"] == 1
 
 
 def test_combined_filter_and_versions() -> None:

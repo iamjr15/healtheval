@@ -3,12 +3,12 @@
 Per-prompt metrics:
 * `cerai_score_range`  — max(mean) - min(mean) across the 7 cells (original + 6 perturbed)
 * `cerai_score_std`    — standard deviation of the means
-* `maaswasth_flag_consistency`   — fraction of cells with the same `flagged` as original
-* `maaswasth_triage_consistency` — fraction of cells with the same triage label as original
+* `healtheval_flag_consistency`   — fraction of cells with the same `flagged` as original
+* `healtheval_band_consistency` — fraction of cells with the same response score band as original
 
 Aggregate:
 * Mean per-prompt CeRAI score range with bootstrap 95% CI (B=10000)
-* Mean MaaSwasth flag-consistency with Wilson 95% CI for the proportion of
+* Mean HealthEval flag-consistency with Wilson 95% CI for the proportion of
   fully-consistent prompts (consistency == 1.0)
 * Krippendorff's alpha (interval) with jackknife 95% CI for each tool's stability
   across perturbation cells (Hughes 2024)
@@ -27,7 +27,7 @@ import scipy.stats as st
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CERAI = REPO_ROOT / "results" / "perturbation_scores_cerai.json"
-MAAS = REPO_ROOT / "results" / "perturbation_scores_maaswasth.json"
+MAAS = REPO_ROOT / "results" / "perturbation_scores_healtheval.json"
 OUT = REPO_ROOT / "results" / "perturbation_audit.json"
 
 
@@ -101,6 +101,9 @@ def _load(p: Path) -> dict[str, Any]:
 
 
 def main() -> int:
+    from eval.benchmark import benchmark_metadata, require_current_benchmark
+    require_current_benchmark(json.loads(MAAS.read_text()), label="HealthEval perturbation scores")
+    require_current_benchmark(json.loads(CERAI.read_text()), label="comparator perturbation scores")
     if not CERAI.exists():
         print(f"{CERAI} missing — run scripts/score_perturbations_cerai_dashboard.py first.", file=sys.stderr)
         return 1
@@ -117,11 +120,11 @@ def main() -> int:
         by_prompt_cerai.setdefault(c["prompt_id"], {})[c["perturbation_type"]] = c["mean"]
 
     by_prompt_maas_flag: dict[str, dict[str, bool]] = {}
-    by_prompt_maas_triage: dict[str, dict[str, str]] = {}
+    by_prompt_maas_band: dict[str, dict[str, str]] = {}
     by_prompt_maas_mean: dict[str, dict[str, float]] = {}
     for c in maas["cells"]:
         by_prompt_maas_flag.setdefault(c["prompt_id"], {})[c["perturbation_type"]] = bool(c.get("flagged"))
-        by_prompt_maas_triage.setdefault(c["prompt_id"], {})[c["perturbation_type"]] = str(c.get("triage_label") or "")
+        by_prompt_maas_band.setdefault(c["prompt_id"], {})[c["perturbation_type"]] = str(c.get("triage_label") or "")
         if c.get("jury_safety_mean") is not None:
             by_prompt_maas_mean.setdefault(c["prompt_id"], {})[c["perturbation_type"]] = float(c["jury_safety_mean"])
 
@@ -139,13 +142,13 @@ def main() -> int:
         cerai_ranges.append(cerai_range)
 
         flags = by_prompt_maas_flag.get(pid, {})
-        triages = by_prompt_maas_triage.get(pid, {})
+        bands = by_prompt_maas_band.get(pid, {})
         means_by_p = by_prompt_maas_mean.get(pid, {})
 
         orig_flag = flags.get("original")
-        orig_triage = triages.get("original")
+        orig_band = bands.get("original")
         flag_match = sum(1 for v in flags.values() if v == orig_flag) / max(1, len(flags))
-        triage_match = sum(1 for v in triages.values() if v == orig_triage) / max(1, len(triages))
+        band_match = sum(1 for v in bands.values() if v == orig_band) / max(1, len(bands))
         maas_flag_consistencies.append(flag_match)
         if means_by_p:
             maas_units_for_alpha.append(list(means_by_p.values()))
@@ -155,11 +158,11 @@ def main() -> int:
             "cerai_score_range": cerai_range,
             "cerai_score_std": cerai_std,
             "cerai_scores_by_perturbation": by_prompt_cerai[pid],
-            "maaswasth_flag_consistency": flag_match,
-            "maaswasth_triage_consistency": triage_match,
-            "maaswasth_flags_by_perturbation": flags,
-            "maaswasth_triages_by_perturbation": triages,
-            "maaswasth_means_by_perturbation": means_by_p,
+            "healtheval_flag_consistency": flag_match,
+            "healtheval_band_consistency": band_match,
+            "healtheval_flags_by_perturbation": flags,
+            "healtheval_bands_by_perturbation": bands,
+            "healtheval_means_by_perturbation": means_by_p,
         })
 
     cerai_range_ci = _bootstrap_ci(cerai_ranges)
@@ -179,7 +182,7 @@ def main() -> int:
                 "Krippendorff alpha is internal consistency across cells per prompt."
             ),
         },
-        "maaswasth": {
+        "healtheval": {
             "n_prompts": len(maas_flag_consistencies),
             "fully_consistent_prompts": fully_consistent,
             "flag_consistency_wilson95_ci": maas_flag_wilson,
@@ -194,13 +197,13 @@ def main() -> int:
         "literature_anchors": {
             "Eiras_2025": "Documents LLM safety judges can shift up to 0.24 in FNR on style perturbation alone (PMLR 296:56-66).",
             "Khullar_2025": "Documents script-shift on Indian-language LLM medical triage produces inconsistent outputs (arXiv:2512.10780).",
-            "Flores_2025": "Justifies the asymmetric-loss frame: missed safety > false-positive in MNH (arXiv:2506.14540).",
+            "Flores_2025": "Justifies the asymmetric-loss frame: missed safety > false-positive in health (arXiv:2506.14540).",
             "Hughes_2024": "Jackknife CI for Krippendorff alpha at small N.",
         },
     }
 
     OUT.write_text(
-        json.dumps({"per_prompt": per_prompt, "aggregate": aggregate}, ensure_ascii=False, indent=2),
+        json.dumps({**benchmark_metadata(), "per_prompt": per_prompt, "aggregate": aggregate}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     print(json.dumps(aggregate, indent=2))

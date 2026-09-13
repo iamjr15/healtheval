@@ -4,6 +4,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import math
 import os
 import statistics
 import uuid
@@ -17,10 +18,14 @@ try:  # requests is in requirements.txt for the Cloudflare POST path.
 except ImportError:  # pragma: no cover — falls back to a friendly error.
     requests = None  # type: ignore[assignment]
 
+from eval.reference_risk import reference_risk_tier
+from eval.judges import judge_score_is_usable
+from streamlit_app.review_routing import decision_review_reasons
 from streamlit_app.components.download_link import render_download_link
 from streamlit_app.components.hitl_form import render_hitl_form
 from streamlit_app.config import (
     CANONICAL_FAILURE_CATEGORIES,
+    CERAI_DB_SCORE_CUTOFF,
     CLOUDFLARE_HITL_ENDPOINT_URL,
     EVALUATOR_TRIAGE_AMBER_THRESHOLD,
     EVALUATOR_TRIAGE_GREEN_THRESHOLD,
@@ -29,7 +34,7 @@ from streamlit_app.config import (
 from streamlit_app.data_loaders import (
     load_calibration_examples,
     load_methodology_artifact,
-    load_cerai,
+    load_cerai_db_scores,
     load_hitl_reviews_repo,
     load_inspect,
     load_reference_items,
@@ -74,7 +79,7 @@ def _judge_variance(judge_scores: list[Mapping[str, Any]], principle_ids: set[in
     vals = [
         float(c.get("score", 0))
         for c in judge_scores
-        if int(c.get("principle_id", -1)) in principle_ids
+        if int(c.get("principle_id", -1)) in principle_ids and judge_score_is_usable(c)
     ]
     if len(vals) < 2:
         return 0.0
@@ -90,6 +95,21 @@ def _near_threshold(mean: float | None) -> bool:
     )
 
 
+def _cerai_decision_from_scores(scores: Mapping[str, Any] | None) -> dict[str, Any]:
+    score_dict = dict(scores or {})
+    mean_score = score_dict.get("mean")
+    try:
+        numeric_score = float(mean_score)
+        flagged = numeric_score < CERAI_DB_SCORE_CUTOFF if math.isfinite(numeric_score) else None
+    except (TypeError, ValueError):
+        flagged = None
+    return {
+        "flagged": flagged,
+        "db_scores": score_dict,
+        "score_cutoff": CERAI_DB_SCORE_CUTOFF,
+    }
+
+
 def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
     """Build the queue: one entry per ref-set prompt that hits ≥ 1 routing rule.
 
@@ -100,7 +120,7 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
     """
     raw_methodology, _selected_path, _suffix = load_methodology_artifact()
     methodology = methodology_for_model(raw_methodology, selected_model)
-    cerai = load_cerai()
+    cerai_db_scores = load_cerai_db_scores().get("scores_by_prompt", {})
     inspect = load_inspect()
     reference_items = load_reference_items()
 
@@ -114,7 +134,6 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
         for row in methodology.get("rows", [])
         if row.get("prompt_id")
     }
-    cerai_decisions = cerai.get("evaluator_outputs", {}) or {}
     inspect_decisions = inspect.get("evaluator_outputs", {}) or {}
     ref_index = {item["id"]: item for item in reference_items if item.get("id")}
 
@@ -136,30 +155,13 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
             continue
         meth_row = methodology_rows.get(prompt_id, {})
         meth_decision = methodology_decisions.get(prompt_id, {})
-        cerai_decision = cerai_decisions.get(prompt_id, {})
+        cerai_decision = _cerai_decision_from_scores(cerai_db_scores.get(prompt_id, {}))
         inspect_decision = inspect_decisions.get(prompt_id, {})
-        reasons: list[str] = []
-        parse_ok = bool(meth_row.get("parse_succeeded", True))
-        if not parse_ok:
-            reasons.append("parse_failed")
-
-        final_methodology_flagged = bool(meth_decision.get("flagged", False))
-        cerai_flagged = bool(cerai_decision.get("flagged", False))
-        inspect_flagged = bool(inspect_decision.get("flagged", False))
-        if cerai_flagged != final_methodology_flagged:
-            reasons.append("cerai_vs_methodology_disagree")
-        if inspect_flagged != final_methodology_flagged:
-            reasons.append("inspect_vs_methodology_disagree")
+        reasons = decision_review_reasons(meth_decision, cerai_decision, inspect_decision)
 
         expected_action = str(ref.get("expected_safety_action", "")).lower()
-        expected_violation = expected_action in {"refer", "urgent"}
         if expected_action == "urgent":
             reasons.append("expected_urgent")
-
-        triage_parsed = meth_row.get("triage_parsed") or {}
-        model_triage = str(triage_parsed.get("triage_label", "")).upper()
-        if expected_violation and model_triage == "GREEN":
-            reasons.append("model_GREEN_for_expected_violation")
 
         variance = _judge_variance(meth_row.get("judge_scores", []), band_ids)
         if variance > JUDGE_VARIANCE_FLAG:
@@ -176,12 +178,12 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
                 "prompt_id": prompt_id,
                 "ref_item": ref,
                 "reasons": reasons,
-                "maaswasth_decision": meth_decision,
+                "healtheval_decision": meth_decision,
                 "cerai_decision": cerai_decision,
                 "inspect_decision": inspect_decision,
                 "panel_response_excerpt": meth_row.get("response", ""),
                 "expected_safety_action": expected_action,
-                "expected_triage_label": ref.get("expected_triage_label"),
+                "reference_risk_tier": reference_risk_tier(ref),
             }
         )
 
@@ -222,11 +224,10 @@ def _route_reason_label(reason: str) -> str:
         score = parts[2] if len(parts) > 2 else "high"
         return f"Judge jury disagreed strongly ({score})"
     labels = {
-        "parse_failed": "Triage JSON did not parse",
-        "cerai_vs_methodology_disagree": "CeRAI disagreed with MaaSwasth Safety Method",
-        "inspect_vs_methodology_disagree": "Inspect scorer disagreed with MaaSwasth Safety Method",
+        "answer_flagged": "Answer flagged by HealthEval Safety Method",
+        "cerai_vs_methodology_disagree": "CeRAI DB score disagreed with HealthEval Safety Method",
+        "inspect_vs_methodology_disagree": "Inspect scorer disagreed with HealthEval Safety Method",
         "expected_urgent": "Reference expected urgent referral",
-        "model_GREEN_for_expected_violation": "Model said GREEN despite expected referral",
         "near_threshold": "Score was near a decision threshold",
     }
     return labels.get(reason, reason.replace("_", " "))
@@ -361,17 +362,17 @@ seed_calibration_ids = [
 
 try:
     rubric_packs = load_rubric_packs()
-    safety_pack = rubric_packs.get("mnh_safety_v1") or {}
+    safety_pack = rubric_packs.get("health_safety_v1") or {}
     failure_categories_for_form = list(
         safety_pack.get("failure_categories")
         or CANONICAL_FAILURE_CATEGORIES
     )
     rubric_version = safety_pack.get("version", "v1")
-    rubric_metric = safety_pack.get("metric", "mnh_safety")
+    rubric_metric = safety_pack.get("metric", "health_safety")
     rubric_version_label = f"{rubric_metric}_{rubric_version}"
 except Exception:  # noqa: BLE001 — fall back to the canonical floor
     failure_categories_for_form = list(CANONICAL_FAILURE_CATEGORIES)
-    rubric_version_label = "mnh_safety_v1"
+    rubric_version_label = "health_safety_v1"
 for entry in visible_queue:
     prompt_id = entry["prompt_id"]
     ref = entry["ref_item"]
@@ -393,12 +394,12 @@ for entry in visible_queue:
             rubric_version=rubric_version_label,
             failure_categories=failure_categories_for_form,
             calibration_example_ids=seed_calibration_ids,
-            maaswasth_decision=entry["maaswasth_decision"],
+            healtheval_decision=entry["healtheval_decision"],
             cerai_decision=entry["cerai_decision"],
             inspect_decision=entry["inspect_decision"],
             auto_route_reasons=entry["reasons"],
             expected_safety_action=entry["expected_safety_action"],
-            expected_triage_label=entry["expected_triage_label"],
+            reference_risk_tier=entry["reference_risk_tier"],
             panel_response_excerpt=entry["panel_response_excerpt"],
             persistence_mode_label=persistence_label,
         )

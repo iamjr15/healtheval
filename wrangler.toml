@@ -2,8 +2,8 @@
 # Functions under `functions/` are routed by Pages automatically.
 # Env vars are set in the Pages dashboard, never in this file:
 #   SARVAM_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY
-#   BUDGET_CENTS_PER_DAY_SARVAM_30B, _SARVAM_105B, _CLAUDE_SONNET_46, _GEMINI_25_PRO
+#   BUDGET_CENTS_PER_DAY_SARVAM_CONVERSATIONS, _SARVAM_105B, _CLAUDE_SONNET_46, _GEMINI_25_PRO
 
-name = "maaswasth-eval"
+name = "healtheval"
 compatibility_date = "2026-05-10"
 pages_build_output_dir = "demo"

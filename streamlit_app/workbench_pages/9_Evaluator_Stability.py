@@ -1,7 +1,7 @@
 """Evaluator Stability page.
 
-Side-by-side stability of MaaSwasth and CeRAI under six prose-level perturbations of the same
-factual content. CeRAI's continuous score drift vs MaaSwasth's binary flag consistency is the
+Side-by-side stability of HealthEval and CeRAI under six prose-level perturbations of the same
+factual content. CeRAI's continuous score drift vs HealthEval's binary flag consistency is the
 load-bearing empirical comparison in the audit. Anchored on Eiras et al. (ICLR 2025 Workshops)
 and Khullar et al. (arXiv:2512.10780, Dec 2025).
 """
@@ -15,7 +15,7 @@ import streamlit as st
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AUDIT_PATH = REPO_ROOT / "results" / "perturbation_audit.json"
-MAAS_PATH = REPO_ROOT / "results" / "perturbation_scores_maaswasth.json"
+MAAS_PATH = REPO_ROOT / "results" / "perturbation_scores_healtheval.json"
 CERAI_PATH = REPO_ROOT / "results" / "perturbation_scores_cerai.json"
 PERT_PATH = REPO_ROOT / "data" / "perturbations" / "perturbed_responses.jsonl"
 BASE_PATH = REPO_ROOT / "data" / "perturbations" / "base_responses.jsonl"
@@ -23,23 +23,16 @@ AUDIT_DOC = REPO_ROOT / "docs" / "perturbation_audit.md"
 
 
 PERTURBATION_DEFINITIONS: dict[str, str] = {
-    "original": "The unmodified sarvam-105b response under the MaaSwasth system prompt. The reference cell every perturbation is compared against.",
+    "original": "The unmodified sarvam-105b response under the HealthEval system prompt. The reference cell every perturbation is compared against.",
     "script_swap": "Hindi prose rewritten from Devanagari to Roman script (Hinglish-script). Mirrors the input-side variation documented in Khullar et al. (arXiv:2512.10780). Medical facts preserved exactly.",
     "code_mix": "Pure Hindi rewritten as natural Hinglish, mixing Hindi and English keywords the way real Indian ASHA workers and beneficiaries write. Same medical content.",
     "length_compress": "Full answer rewritten to an SMS-length 1-2 sentence message. Safety-critical facts preserved; politeness phrases dropped. Mirrors low-bandwidth phone behaviour.",
-    "style_inflate": "Same content with a more confident/clinical register; may include citation-shaped phrases like '(WHO ANC 2016)'. No new medical facts. Eiras et al. (ICLR 2025) showed this kind of style shift moves LLM-as-judge scores up to 0.24 FNR.",
+    "style_inflate": "Same content with a more confident/clinical register; may include citation-shaped phrases like a verified source name. No new medical facts. Eiras et al. (ICLR 2025) showed this kind of style shift moves LLM-as-judge scores up to 0.24 FNR.",
     "style_deflate": "Same content rewritten in a casual ASHA-worker register. Citations removed; doses/referrals/helplines preserved.",
     "authority_register": "Same content rewritten in an ASHA-training-manual voice (instructional, third-person, structured).",
 }
 
-VERIFIER_PASS_RATES: dict[str, str] = {
-    "script_swap": "5/5",
-    "code_mix": "5/5",
-    "style_deflate": "4/5",
-    "style_inflate": "3/5",
-    "authority_register": "2/5",
-    "length_compress": "1/5",
-}
+VERIFIER_PASS_RATES: dict[str, str] = {}
 
 
 def _load_audit() -> dict | None:
@@ -74,7 +67,7 @@ st.title("Evaluator Stability")
 
 st.markdown(
     "**The question this page answers.** When the *same factual content* is delivered in the "
-    "surface forms real Hindi mNH users actually produce — Devanagari ↔ Roman Hindi, Hinglish "
+    "surface forms people seeking health advice in Hindi produce — Devanagari ↔ Roman Hindi, Hinglish "
     "code-mix, SMS-length compression, register shifts — does each evaluator give consistent "
     "verdicts? A clinical reviewer cannot trust a 0.85 score if the same medical content scores "
     "0.50 under a different surface form. The target model is held fixed; the evaluator is the "
@@ -96,6 +89,11 @@ with st.container(border=True):
     )
 
 audit = _load_audit()
+if audit is None:
+    st.info("Stability testing has not been run for the current HealthEval benchmark.")
+    st.stop()
+from eval.benchmark import require_current_benchmark
+require_current_benchmark(audit, label="perturbation audit")
 bases = _load_bases()
 perts = _load_perturbations()
 
@@ -105,7 +103,7 @@ st.subheader("Headline")
 
 if audit is None:
     st.warning(
-        "**Audit results not generated yet.** Run `scripts/score_perturbations_maaswasth.py` and "
+        "**Audit results not generated yet.** Run `scripts/score_perturbations_healtheval.py` and "
         "`scripts/score_perturbations_cerai_dashboard.py`, then `scripts/compute_perturbation_robustness.py`. "
         "The audit JSON will materialise at `results/perturbation_audit.json` and this page will "
         "populate automatically."
@@ -139,8 +137,8 @@ else:
         st.caption("Higher α = more stable. Higher score range = less stable.")
 
     with c2:
-        st.markdown("**MaaSwasth panel** (claude-sonnet-4-6 + gemini-2.5-pro jury · `final_safety_method` calibration)")
-        m = agg["maaswasth"]
+        st.markdown("**HealthEval panel** (claude-sonnet-4-6 + gemini-2.5-pro jury · `final_safety_method` calibration)")
+        m = agg["healtheval"]
         st.metric(
             "Prompts with identical `flagged` across all 7 cells",
             f"{m['fully_consistent_prompts']} / {m['n_prompts']}",
@@ -167,9 +165,9 @@ else:
         st.caption("Higher fully-consistent count = more stable flag.")
 
     st.info(
-        "**How to read this.** Compare **CeRAI's score range** to **MaaSwasth's flag-consistency**. "
+        "**How to read this.** Compare **CeRAI's score range** to **HealthEval's flag-consistency**. "
         "CeRAI emits a continuous score; the range tells you how much the same factual content "
-        "swings purely from surface form. MaaSwasth emits a binary flag plus a jury_safety_mean; "
+        "swings purely from surface form. HealthEval emits a binary flag plus a jury_safety_mean; "
         "flag-consistency tells you whether the routing decision (HITL or not) survives surface change. "
         "This audit measures **stability**, not correctness."
     )
@@ -189,15 +187,15 @@ st.subheader("Per-prompt breakdown")
 st.caption(
     "One expander per base prompt. Each row of the inner table is one cell (original + 6 perturbations). "
     "CeRAI `mean` = average of Accuracy + Relevance + Hallucination from the dashboard analyzer. "
-    "MaaSwasth `flagged` is the binary HITL routing decision; `score_band` is the response-evaluation band."
+    "HealthEval `flagged` is the binary HITL routing decision; `score_band` is the response-evaluation band."
 )
 
 if audit is not None:
     for row in audit["per_prompt"]:
         title = (
             f"**{row['prompt_id']}** — CeRAI score range "
-            f"`{row['cerai_score_range']:.2f}` · MaaSwasth flag-consistency "
-            f"`{row['maaswasth_flag_consistency']:.2f}`"
+            f"`{row['cerai_score_range']:.2f}` · HealthEval flag-consistency "
+            f"`{row['healtheval_flag_consistency']:.2f}`"
         )
         with st.expander(title):
             base = bases.get(row["prompt_id"], {})
@@ -207,12 +205,12 @@ if audit is not None:
                            f"urgency='{base.get('expected_urgency','')[:80]}…' · "
                            f"`base_source={base.get('base_source','')}`")
             cerai_scores = row.get("cerai_scores_by_perturbation", {})
-            maas_flags = row.get("maaswasth_flags_by_perturbation", {})
+            maas_flags = row.get("healtheval_flags_by_perturbation", {})
             maas_bands = (
-                row.get("maaswasth_bands_by_perturbation")
-                or row.get("maaswasth_triages_by_perturbation", {})
+                row.get("healtheval_bands_by_perturbation")
+                or row.get("healtheval_triages_by_perturbation", {})
             )
-            maas_means = row.get("maaswasth_means_by_perturbation", {})
+            maas_means = row.get("healtheval_means_by_perturbation", {})
             perts_order = list(cerai_scores.keys()) or list(maas_flags.keys())
             df = pd.DataFrame({
                 "perturbation": perts_order,
@@ -264,7 +262,7 @@ st.divider()
 st.subheader("Where else to look")
 st.markdown(
     "- **Full audit writeup with citations**: `docs/perturbation_audit.md`\n"
-    "- **Raw scores**: `results/perturbation_scores_cerai.json`, `results/perturbation_scores_maaswasth.json`\n"
+    "- **Raw scores**: `results/perturbation_scores_cerai.json`, `results/perturbation_scores_healtheval.json`\n"
     "- **Audit aggregate (this page's source data)**: `results/perturbation_audit.json`\n"
     "- **Perturbation data + factual diffs**: `data/perturbations/perturbed_responses.jsonl`\n"
     "- **Compute script**: `scripts/compute_perturbation_robustness.py`"

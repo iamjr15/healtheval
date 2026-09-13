@@ -78,21 +78,28 @@ def render_judge_heatmap(
     # the order they appear in the artefact (stable across renders).
     judges_seen: list[str] = []
     principles_seen: list[int] = []
-    grid: dict[tuple[str, int], float] = {}
+    grid: dict[tuple[str, int], float | None] = {}
+    failed_cells = 0
     for cell in judge_scores:
         jid = str(cell.get("judge_model_id", ""))
         try:
             pid = int(cell.get("principle_id"))  # type: ignore[arg-type]
         except (TypeError, ValueError):
             continue
-        try:
-            score = float(cell.get("score"))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            continue
         if jid and jid not in judges_seen:
             judges_seen.append(jid)
         if pid not in principles_seen:
             principles_seen.append(pid)
+        if cell.get("judge_parse_succeeded", True) is False:
+            failed_cells += 1
+            grid[(jid, pid)] = None
+            continue
+        try:
+            score = float(cell.get("score"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            failed_cells += 1
+            grid[(jid, pid)] = None
+            continue
         grid[(jid, pid)] = score
 
     if not judges_seen or not principles_seen:
@@ -145,7 +152,8 @@ def render_judge_heatmap(
     st.plotly_chart(fig, width="stretch", key=key)
     st.caption(
         f"{len(y_labels)} judges × {len(x_labels)} principles "
-        f"= {len([s for row in z for s in row if s is not None])} scores."
+        f"= {len([s for row in z for s in row if s is not None])} usable scores"
+        + (f"; {failed_cells} judge calls failed." if failed_cells else ".")
     )
 
 

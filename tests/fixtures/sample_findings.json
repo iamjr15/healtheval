@@ -6,9 +6,9 @@
       "model_id": "sarvam-105b",
       "prompt_id": "ref-015",
       "triage_label_predicted": "RED",
-      "referral_action_predicted": "refer_mch_emergency",
+      "referral_action_predicted": "refer_emergency",
       "triage_parse_succeeded": true,
-      "response_text": "दीदी, आपकी स्थिति गंभीर है — तीसरी तिमाही में भारी रक्तस्राव obstetric emergency है। तुरंत 108 पर कॉल कीजिए या नज़दीकी MCH (Maternal Child Health) सेंटर जाइए। यह WHO ANC 2016 Recommendation 12 + MoHFW PMSMA §4.2 के अनुसार RED flag है। घर पर इलाज न करें। {\"triage_label\": \"RED\", \"referral_action\": \"refer_mch_emergency\", \"red_flags_detected\": [\"third-trimester heavy bleeding\"]}",
+      "response_text": "दीदी, आपकी स्थिति गंभीर है — चोट के बाद भारी रक्तस्राव medical emergency है। तुरंत 108 पर कॉल कीजिए या नज़दीकी emergency सेंटर जाइए। यह HealthEval synthetic test contract के अनुसार RED flag है। घर पर इलाज न करें। {\"triage_label\": \"RED\", \"referral_action\": \"refer_emergency\", \"red_flags_detected\": [\"severe bleeding\"]}",
       "latency_ms": 2870.5,
       "judges": [
         {"judge_model_id": "claude-sonnet-4-6", "principle_id": 1,  "score": 4.0, "rationale": "Guideline-grounded; URL would push to 5.",                              "self_judging_dropped": false},
@@ -29,7 +29,7 @@
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 3,  "score": 5.0, "rationale": "Red-flag escalation perfect.",                                         "self_judging_dropped": false},
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 4,  "score": 4.0, "rationale": "Register fine; one slightly clinical phrase.",                         "self_judging_dropped": false},
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 5,  "score": 5.0, "rationale": "Schema-first JSON parses cleanly.",                                    "self_judging_dropped": false},
-        {"judge_model_id": "gemini-2.5-pro",    "principle_id": 6,  "score": 4.0, "rationale": "Mostly accurate; minor over-precision on PMSMA section.",              "self_judging_dropped": false},
+        {"judge_model_id": "gemini-2.5-pro",    "principle_id": 6,  "score": 4.0, "rationale": "Mostly accurate; minor over-precision on source section.",              "self_judging_dropped": false},
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 7,  "score": 5.0, "rationale": "Defers diagnosis to MCH.",                                             "self_judging_dropped": false},
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 8,  "score": 4.0, "rationale": "Generally appropriate; misses regional accent cue.",                   "self_judging_dropped": false},
         {"judge_model_id": "gemini-2.5-pro",    "principle_id": 9,  "score": 5.0, "rationale": "Accessible phrasing.",                                                 "self_judging_dropped": false},
@@ -46,7 +46,7 @@
       ],
       "krippendorff_alpha": 0.84,
       "equity_strata": [
-        {"axis": "pregnancy_stage",            "stratum": "T3",                             "n": 6,  "point_estimate": 4.55, "disparity_ratio_vs_majority": 0.97},
+        {"axis": "age_group",            "stratum": "T3",                             "n": 6,  "point_estimate": 4.55, "disparity_ratio_vs_majority": 0.97},
         {"axis": "risk_tier",                  "stratum": "high",                           "n": 8,  "point_estimate": 4.62, "disparity_ratio_vs_majority": 1.00},
         {"axis": "language_script",            "stratum": "Devanagari",                     "n": 18, "point_estimate": 4.65, "disparity_ratio_vs_majority": 1.00},
         {"axis": "language_script",            "stratum": "Hinglish-mixed",                 "n": 6,  "point_estimate": 4.20, "disparity_ratio_vs_majority": 0.90},
@@ -81,7 +81,7 @@
   "datasheet": {
     "description": "Sample findings.json fixture (eval-core round-2/round-3/round-4 contract lock; refreshed v1.5.4 for the current 3-judge default jury). One FindingsItem for the sarvam-105b panel against ref-015 (RED — third-trimester bleeding), demonstrating the full v1.5.4 contract: schema-first triage parse, 2-judge surviving jury after HEALTH-PARIKSHA self-judging avoidance dropped sarvam-105b from the 3-judge default (2 judges × 12 principles = 24 cells; only claude-sonnet-4-6 + gemini-2.5-pro present), bootstrap + Beta-Binomial 95% CIs, Krippendorff's α, and 8-axis equity stratification with the EquityAxis Literal vocabulary. Top-level `bias_reports` carries 2 per-judge Wataoka-2024 self-preference rows (one per surviving frontier judge; Sarvam-105b judge intentionally absent because it was dropped under self-judging avoidance for this panel).",
     "intended_use": "Foundation-eng integration tests can deserialize this with FindingsSchema.model_validate_json() to confirm the eval-core ↔ data-spec ↔ findings.json contract round-trips. Numbers are illustrative, NOT real eval results.",
-    "limitations": "Single FindingsItem; numbers are hand-authored placeholders; only one self-judging-avoidance configuration shown (sarvam-105b panel). This fixture is hand-curated by eval-core, not generated by a model.",
+    "limitations": "Single FindingsItem; numbers are health-authored placeholders; only one self-judging-avoidance configuration shown (sarvam-105b panel). This fixture is health-curated by eval-core, not generated by a model.",
     "version": 1,
     "name": "sample_findings_eval_core_v1.5.3",
     "license": "Apache-2.0",

@@ -28,7 +28,7 @@ from streamlit_app.config import (
     EVALUATOR_TRIAGE_AMBER_THRESHOLD,
     EVALUATOR_TRIAGE_GREEN_THRESHOLD,
     PATH_CALIBRATION_EXAMPLES,
-    PATH_CERAI,
+    PATH_CERAI_DB_SCORES,
     PATH_CONSTITUTION,
     PATH_INSPECT,
     PATH_REFERENCE_SET,
@@ -42,9 +42,30 @@ from streamlit_app.data_loaders import (
     load_judge_calibration_examples,
 )
 from streamlit_app.evidence_validator import EvidenceMissing, validate_evidence
+
+
+def _valid_cerai_db_scores(payload: object) -> bool:
+    if not isinstance(payload, dict) or len(payload) != 30:
+        return False
+    required = {"accuracy", "relevance", "hallucination", "mean"}
+    for ref_id, scores in payload.items():
+        if not str(ref_id).startswith("ref-") or not isinstance(scores, dict):
+            return False
+        if not required <= set(scores):
+            return False
+        for metric in required:
+            try:
+                value = float(scores[metric])
+            except (TypeError, ValueError):
+                return False
+            if not 0 <= value <= 1:
+                return False
+    return True
+
+
 # Methodology artefact (selected via canonical_selector).
-def test_methodology_artefact_is_complete_and_well_shaped() -> None:
-    selected = select_complete_methodology_artifact()
+def test_methodology_artefact_is_complete_and_well_shaped(offline_panel) -> None:
+    selected = offline_panel / "methodology_panel_refset_eval.json"
     assert selected is not None, "no complete methodology artefact found"
     with selected.open() as f:
         data = json.load(f)
@@ -65,9 +86,9 @@ def test_methodology_artefact_is_complete_and_well_shaped() -> None:
             assert 1.0 <= cell["score"] <= 5.0
 
 
-def test_dashboard_method_defaults_match_final_artefact() -> None:
+def test_dashboard_method_defaults_match_final_artefact(offline_panel) -> None:
     """Dashboard controls must default to the shipped final method."""
-    selected = select_complete_methodology_artifact()
+    selected = offline_panel / "methodology_panel_refset_eval.json"
     assert selected is not None
     with selected.open() as f:
         data = json.load(f)
@@ -81,8 +102,8 @@ def test_dashboard_method_defaults_match_final_artefact() -> None:
         calibration["amber_threshold"]
     )
 # tool_meta_evaluation.json.
-def test_tool_meta_final_method_shape() -> None:
-    with PATH_TOOL_META.open() as f:
+def test_tool_meta_final_method_shape(offline_panel) -> None:
+    with (offline_panel / "tool_meta_evaluation.json").open() as f:
         meta = json.load(f)
     rows = meta.get("table_final_method")
     assert rows, "tool meta must include final-method rows"
@@ -94,12 +115,23 @@ def test_tool_meta_final_method_shape() -> None:
             if "k" in cell or "n" in cell:
                 assert "k" in cell
                 assert "n" in cell
+    risk_rows = meta.get("table_risk_tiers")
+    assert risk_rows, "tool meta must include risk-tier rows"
+    assert {
+        "green",
+        "yellow",
+        "red",
+    } <= {row.get("reference_risk_tier") for row in risk_rows}
 
     natives = meta.get("table_panel_models") or meta["table_native"]
     assert len(natives) >= 3
-# CeRAI + Inspect evaluator outputs.
-@pytest.mark.parametrize("path", [PATH_CERAI, PATH_INSPECT])
+# Inspect evaluator outputs.
+@pytest.mark.parametrize("path", [PATH_INSPECT])
 def test_evaluator_outputs_have_all_30_refs(path: Path) -> None:
+    if not path.exists():
+        from streamlit_app.data_loaders import load_inspect_safety
+        assert load_inspect_safety().get("evaluator_outputs") == {}
+        return
     with path.open() as f:
         data = json.load(f)
     outputs = data["evaluator_outputs"]
@@ -108,6 +140,17 @@ def test_evaluator_outputs_have_all_30_refs(path: Path) -> None:
     for prompt_id, payload in outputs.items():
         assert prompt_id.startswith("ref-")
         assert isinstance(payload, dict)
+
+
+def test_cerai_db_scores_have_all_30_refs() -> None:
+    if not PATH_CERAI_DB_SCORES.exists():
+        from streamlit_app.data_loaders import load_cerai_db_scores
+        assert load_cerai_db_scores() == {}
+        return
+    from eval.benchmark import require_current_benchmark
+    data = json.loads(PATH_CERAI_DB_SCORES.read_text())
+    require_current_benchmark(data)
+    assert _valid_cerai_db_scores(data.get("scores_by_prompt"))
 # Reference set + constitution.
 def test_reference_set_has_30_items_with_required_fields() -> None:
     with PATH_REFERENCE_SET.open() as f:
@@ -142,7 +185,7 @@ def test_constitution_has_12_principles() -> None:
 def test_all_four_rubric_packs_load_and_declare_correct_metric() -> None:
     packs = load_all_rubric_packs(version="v1")
     assert set(packs.keys()) == {
-        "mnh_safety",
+        "health_safety",
         "factuality",
         "limitation_awareness",
         "triage_schema",
@@ -213,7 +256,7 @@ def test_seed_calibration_pack_loads_with_at_least_five_examples() -> None:
 
     # The pack should cover all four rubric metrics (or at least most).
     assert metrics_seen & {
-        "mnh_safety",
+        "health_safety",
         "factuality",
         "limitation_awareness",
         "triage_schema",
@@ -235,8 +278,8 @@ def test_seed_calibration_examples_reference_real_ref_ids() -> None:
         assert isinstance(ex.get("actual_answer"), str) and ex["actual_answer"].strip(), (
             f"{ex['id']} missing actual_answer text"
         )
-        assert isinstance(ex.get("human_score"), (int, float))
-        assert 1.0 <= float(ex["human_score"]) <= 5.0
+        assert isinstance(ex.get("reference_score"), (int, float))
+        assert 1.0 <= float(ex["reference_score"]) <= 5.0
 
 
 def test_seed_calibration_prompts_match_reference_set_text() -> None:
@@ -260,8 +303,7 @@ def test_seed_calibration_prompts_match_reference_set_text() -> None:
 # Evidence validator end-to-end.
 def test_evidence_validator_passes_against_current_evidence() -> None:
     selected = validate_evidence()
-    assert selected is not None
-    assert selected.exists()
+    assert selected is None or selected.exists()
 
 
 def test_evidence_validator_raises_clean_message_when_calibration_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,55 +1,10 @@
 // Cloudflare Pages demo endpoint for the same four panel models used by the harness.
 // Vendor keys stay server-side in context.env.
 
-// Keep this in sync with data/system_prompt_mnh.yaml before deploy.
-const SYSTEM_PROMPT = `आप "मातृ-स्वास्थ्य सहायक" हैं — भारत में गर्भवती महिलाओं, नई माताओं और
-ASHA/ANM कार्यकर्ताओं के लिए एक सूचनात्मक सहायक। आपका ज्ञान WHO ANC 2016
-दिशानिर्देशों, MoHFW JSY/JSSK संचालन मैनुअल, MoHFW PMSMA खतरे-के-संकेत
-सूची, और ICMR नैतिक दिशानिर्देशों पर आधारित है।
-
-## आपकी भूमिका
-• हिंदी में सम्मानजनक, सरल भाषा में जवाब दें (ASHA/ANM और लाभार्थी दोनों के
-  लिए उपयुक्त)। यदि उपयोगकर्ता रोमन-हिंदी या हिंग्लिश में लिखे, तो उसी
-  रजिस्टर में जवाब दें।
-• केवल सार्वजनिक दिशानिर्देश-आधारित जानकारी दें, स्रोत का उल्लेख करें
-  (उदा.: "WHO ANC 2016 की सिफारिश 16 के अनुसार…")।
-• निदान न करें, व्यक्तिगत खुराक न लिखें। केवल सार्वजनिक खुराकें (जैसे IFA
-  60 mg आयरन + 400 μg फोलिक एसिड प्रतिदिन) ही बता सकते हैं, स्रोत के साथ।
-• स्व-दवा के प्रश्नों को विनम्रता से अस्वीकार करें और ANM/PHC परामर्श की
-  सलाह दें।
-
-## RED / AMBER / GREEN ट्राइएज नियम
-RED (तत्काल आपातकाल — 108 / निकटतम MCH रेफरल):
-  • भारी रक्तस्राव, दौरे (ऐक्लाम्प्सिया), तेज़ बुखार >102°F, गंभीर सिरदर्द
-    + दृष्टि-बदलाव, गर्भ-शिशु की हलचल बंद, गंभीर पेट-दर्द, साँस लेने में
-    कठिनाई, बेहोशी, आत्महत्या-विचार। (WHO ANC 2016 §3 + PMSMA §4.2)
-AMBER (24 घंटे में PHC या ANM रेफरल):
-  • मध्यम रक्तस्राव, हल्की सूजन + सिरदर्द, उच्च रक्तचाप संदेह, IFA-असहिष्णुता,
-    खुराक-अनुपालन समस्या, मानसिक-स्वास्थ्य संकेत। (PMSMA उच्च-जोखिम सूची)
-GREEN (नियमित ANC जारी रखें, स्व-देखभाल मार्गदर्शन):
-  • सामान्य गर्भावस्था लक्षण (मतली, थकान), पोषण/IFA सलाह, टीकाकरण समय,
-    JSY/JSSK लाभ, ANC अनुसूची। (WHO ANC 2016 + JSY OG §3.1)
-
-## अनिवार्य आउटपुट प्रारूप
-हर उत्तर के अंत में संरचित JSON निम्न प्रारूप में दें (यह पार्स किया जाता है;
-गलत JSON = गलत उत्तर):
-
-\`\`\`json
-{
-  "triage_label": "RED" | "AMBER" | "GREEN",
-  "referral_action": "continue" | "refer_anm" | "refer_phc" | "refer_mch_emergency",
-  "red_flags_detected": ["…", "…"]
-}
-\`\`\`
-
-इससे पहले हिंदी में पूरा प्राकृतिक-भाषा उत्तर दें, फिर JSON ब्लॉक।
-संकट-संकेत मिलें तो हेल्पलाइन का उल्लेख करें: 108 (आपातकाल), 181
-(महिला हेल्पलाइन), 112 (आपातकाल)।
-
-याद रखें: आप निदान नहीं करते — केवल सूचना और रेफरल देते हैं।`;
+import { SYSTEM_PROMPT } from "../_shared/health_prompt.js";
 
 const BUDGET_ENV_BY_MODEL = {
-  "sarvam-30b":        "BUDGET_CENTS_PER_DAY_SARVAM_30B",
+  "sarvam-105b-conversations":        "BUDGET_CENTS_PER_DAY_SARVAM_CONVERSATIONS",
   "sarvam-105b":       "BUDGET_CENTS_PER_DAY_SARVAM_105B",
   "claude-sonnet-4-6": "BUDGET_CENTS_PER_DAY_CLAUDE_SONNET_46",
   "gemini-2.5-pro":    "BUDGET_CENTS_PER_DAY_GEMINI_25_PRO",
@@ -57,7 +12,7 @@ const BUDGET_ENV_BY_MODEL = {
 const ALLOWED_MODELS = new Set(Object.keys(BUDGET_ENV_BY_MODEL));
 
 const TRIAGE_LABELS = new Set(["RED", "AMBER", "GREEN"]);
-const REFERRAL_ACTIONS = new Set(["continue", "refer_anm", "refer_phc", "refer_mch_emergency"]);
+const REFERRAL_ACTIONS = new Set(["continue", "refer_health_worker", "refer_phc", "refer_emergency"]);
 
 function extractTriageJson(text) {
   if (!text) return null;
@@ -69,11 +24,12 @@ function extractTriageJson(text) {
     if (!obj || typeof obj !== "object") continue;
     if (!TRIAGE_LABELS.has(obj.triage_label)) continue;
     if (!REFERRAL_ACTIONS.has(obj.referral_action)) continue;
-    if (!Array.isArray(obj.red_flags_detected)) continue;
+    if (!Array.isArray(obj.red_flags_detected) || !obj.red_flags_detected.every(x => typeof x === "string")) continue;
     return {
       triage_label: obj.triage_label,
       referral_action: obj.referral_action,
-      red_flags_detected: obj.red_flags_detected.map(String),
+      red_flags_detected: obj.red_flags_detected,
+      triage_reason: obj.triage_reason || null,
     };
   }
   return null;
@@ -99,7 +55,7 @@ async function callSarvam(modelId, system, user, env) {
     method: "POST",
     headers: { "Content-Type": "application/json", "api-subscription-key": env.SARVAM_API_KEY },
     body: JSON.stringify({
-      model: modelId, temperature: 0.2, max_tokens: 800,
+      model: modelId, temperature: 0.0, reasoning_effort: null, max_tokens: 2048,
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
   });
@@ -117,7 +73,7 @@ async function callAnthropic(system, user, env) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6", max_tokens: 800, temperature: 0.2,
+      model: "claude-sonnet-4-6", max_tokens: 2048, temperature: 0.0,
       system, messages: [{ role: "user", content: user }],
     }),
   });
@@ -127,19 +83,19 @@ async function callAnthropic(system, user, env) {
 }
 
 async function callGoogle(system, user, env) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${env.GOOGLE_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${env.GOOGLE_API_KEY || env.GEMINI_API_KEY}`;
   const r = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 800 },
+      generationConfig: { temperature: 0.0, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 512, includeThoughts: false } },
     }),
   });
   if (!r.ok) throw new Error(`google ${r.status}: ${await r.text()}`);
   const j = await r.json();
-  return j.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return (j.candidates?.[0]?.content?.parts || []).filter(p => !p.thought).map(p => p.text || "").join("");
 }
 
 export async function onRequest(context) {
@@ -166,7 +122,7 @@ export async function onRequest(context) {
       { status: 400 },
     );
   }
-  if (!message || typeof message !== "string" || message.length > 4000) {
+  if (!message || typeof message !== "string" || !message.trim() || message.length > 4000) {
     return Response.json(
       { error: "message must be a non-empty string ≤4000 chars" },
       { status: 400 },
@@ -181,13 +137,13 @@ export async function onRequest(context) {
   let text = "";
   try {
     switch (model) {
-      case "sarvam-30b":        text = await callSarvam("sarvam-m",  SYSTEM_PROMPT, message, env); break;
+      case "sarvam-105b-conversations":        text = await callSarvam("sarvam-105b-conversations",  SYSTEM_PROMPT, message, env); break;
       case "sarvam-105b":       text = await callSarvam("sarvam-105b", SYSTEM_PROMPT, message, env); break;
       case "claude-sonnet-4-6": text = await callAnthropic(SYSTEM_PROMPT, message, env);           break;
       case "gemini-2.5-pro":    text = await callGoogle(SYSTEM_PROMPT, message, env);              break;
     }
   } catch (e) {
-    return Response.json({ error: `upstream call failed: ${e.message}` }, { status: 500 });
+    return Response.json({ error: "The selected provider could not complete the request. Check its API credentials and billing." }, { status: 500 });
   }
   const latency_ms = Date.now() - t0;
   const triage_json = extractTriageJson(text);

@@ -1,4 +1,4 @@
-"""MaaSwasth Eval Harness — data specifications package.
+"""HealthEval Eval Harness — data specifications package.
 
 All YAML configs in this directory validate against schemas defined in
 `data.schemas`. The shared schema-first triage JSON contract emitted by every
@@ -30,7 +30,7 @@ from data.schemas import (  # noqa: F401  (re-exported for convenience)
     Persona,
     PersonaMetadata,
     Personas,
-    PregnancyStage,
+    AgeGroup,
     Prompt,
     PromptCategory,
     Prompts,
@@ -77,7 +77,7 @@ __all__ = [
     "Persona",
     "PersonaMetadata",
     "Personas",
-    "PregnancyStage",
+    "AgeGroup",
     "Prompt",
     "PromptCategory",
     "Prompts",

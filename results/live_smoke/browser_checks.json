@@ -1,0 +1,65 @@
+[
+  {
+    "route": "Overview",
+    "heading": "HealthEval Evaluation Workbench",
+    "errors": [],
+    "expected_heading": "HealthEval Evaluation Workbench",
+    "passed": true
+  },
+  {
+    "route": "Case_Explorer",
+    "heading": "Reference Case Explorer",
+    "errors": [],
+    "expected_heading": "Reference Case Explorer",
+    "passed": true
+  },
+  {
+    "route": "Human_Review_Queue",
+    "heading": "Human Review Queue",
+    "errors": [],
+    "expected_heading": "Human Review Queue",
+    "passed": true
+  },
+  {
+    "route": "Safety_Thresholds",
+    "heading": "Safety Thresholds",
+    "errors": [],
+    "expected_heading": "Safety Thresholds",
+    "passed": true
+  },
+  {
+    "route": "Judge_Memory",
+    "heading": "Judge Memory",
+    "errors": [],
+    "expected_heading": "Judge Memory",
+    "passed": true
+  },
+  {
+    "route": "Scoring_Rubrics",
+    "heading": "Scoring Rubrics",
+    "errors": [],
+    "expected_heading": "Scoring Rubrics",
+    "passed": true
+  },
+  {
+    "route": "Audit_Trace",
+    "heading": "Audit Trace",
+    "errors": [],
+    "expected_heading": "Audit Trace",
+    "passed": true
+  },
+  {
+    "route": "Evaluator_Stability",
+    "heading": "Evaluator Stability",
+    "errors": [],
+    "expected_heading": "Evaluator Stability",
+    "passed": true
+  },
+  {
+    "route": "Live_Demo",
+    "heading": "Live Prompt Demo",
+    "errors": [],
+    "expected_heading": "Live Prompt Demo",
+    "passed": true
+  }
+]

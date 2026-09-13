@@ -1,1 +1,1 @@
-"""MaaSwasth Evaluation Workbench Streamlit app."""
+"""HealthEval Evaluation Workbench Streamlit app."""

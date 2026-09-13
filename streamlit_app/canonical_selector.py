@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from .config import RESULTS_DIR
+from eval.benchmark import benchmark_fingerprint
 
 CANDIDATE_PATHS_IN_PRIORITY_ORDER: tuple[Path, ...] = (
     RESULTS_DIR / "methodology_panel_refset_eval.json",
@@ -22,7 +23,8 @@ CANDIDATE_PATHS_IN_PRIORITY_ORDER: tuple[Path, ...] = (
 
 
 def select_complete_methodology_artifact(
-    candidates: tuple[Path, ...] = CANDIDATE_PATHS_IN_PRIORITY_ORDER,
+    candidates: tuple[Path, ...] | None = None,
+    *, expected_fingerprint: str | None = None,
 ) -> Path | None:
     """Return path of the most recent complete methodology artefact, or None.
 
@@ -33,6 +35,9 @@ def select_complete_methodology_artifact(
     stays cheap (one ``json.load`` per candidate, short-circuits on first
     hit) and never mistakes "rows are weird" for "artefact is in flight".
     """
+    if candidates is None:
+        candidates = CANDIDATE_PATHS_IN_PRIORITY_ORDER
+        expected_fingerprint = expected_fingerprint or benchmark_fingerprint()
     for path in candidates:
         if not path.exists():
             continue
@@ -43,6 +48,8 @@ def select_complete_methodology_artifact(
             # Treat malformed JSON as in-flight.
             continue
         if not isinstance(data, dict):
+            continue
+        if expected_fingerprint is not None and data.get("benchmark_fingerprint") != expected_fingerprint:
             continue
         done = data.get("n_prompts_done")
         total = data.get("n_prompts_total")

@@ -4,7 +4,7 @@ Replaces the v1.3 50-item MedMCQA judge meta-eval per Codex R1: comparing
 two automated evaluators against each other isn't ground truth — it just
 measures inter-evaluator agreement, which can be wrong in the same
 direction. The strong epistemic move is to bring in independent ground
-truth via a hand-curated, source-grounded reference set
+truth via a health-curated, source-grounded reference set
 (``data/reference_set.yaml``, lead's deliverable, n=30 LOCKED), then
 score every evaluator against THAT.
 

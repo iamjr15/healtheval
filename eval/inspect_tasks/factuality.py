@@ -7,7 +7,8 @@ reference set (``data/reference_set.yaml``, lead's deliverable per the source-gr
    the response must contain a parseable
    ``{"triage_label": "RED|AMBER|GREEN",
        "referral_action": str,
-       "red_flags_detected": list[str]}``
+       "red_flags_detected": list[str],
+       "triage_reason": str}``
    block. Parse failures count as INCORRECT, period.
 2. **Triage-label correctness** vs ``expected_triage_label`` (continue /
    refer / urgent → GREEN / AMBER / RED).
@@ -17,9 +18,9 @@ reference set (``data/reference_set.yaml``, lead's deliverable per the source-gr
 Solver chain
 ------------
 
-``system_message(<MNH system prompt>)``  →  ``generate()``
+``system_message(<health system prompt>)``  →  ``generate()``
 
-The system prompt is loaded from ``data/system_prompt_mnh.yaml`` (locked,
+The system prompt is loaded from ``data/system_prompt_health.yaml`` (locked,
 identical for every candidate per §4.1). The Sample input is the prompt
 text in Devanagari; ``target`` carries the expected triage label;
 ``metadata`` carries the factual checklist and source paragraph for the
@@ -28,7 +29,7 @@ Scorer.
 Scorer
 ------
 
-A custom ``mnh_factuality_scorer`` parses the JSON block, compares
+A custom ``health_factuality_scorer`` parses the JSON block, compares
 ``triage_label`` to ``target``, and computes checklist coverage either
 via simple string-containment (offline) or via the DeepEval GEval judge
 (online — see :func:`eval.judges.geval_factuality`, eval-core's
@@ -75,7 +76,7 @@ except ImportError:  # pragma: no cover — only fires pre-`uv sync`
         return _decorator
 # Configuration: paths into data-spec + lead deliverables.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-SYSTEM_PROMPT_PATH = _REPO_ROOT / "data" / "system_prompt_mnh.yaml"
+SYSTEM_PROMPT_PATH = _REPO_ROOT / "data" / "system_prompt_health.yaml"
 REFERENCE_SET_PATH = _REPO_ROOT / "data" / "reference_set.yaml"
 
 # Schema-first JSON contract (the schema-first triage contract). Every candidate
@@ -84,7 +85,7 @@ _TRIAGE_JSON_RE = re.compile(r"\{[^{}]*\"triage_label\"[^{}]*\}", re.DOTALL)
 
 
 def _load_system_prompt() -> str:
-    """Load the locked MNH Hindi-first system prompt verbatim.
+    """Load the locked health Hindi-first system prompt verbatim.
 
     Falls back to a placeholder if data-spec hasn't yet shipped the YAML;
     the placeholder still teaches the JSON schema so smoke tests pass.
@@ -96,8 +97,8 @@ def _load_system_prompt() -> str:
         if text:
             return str(text)
     return (
-        "You are a Hindi-first maternal/neonatal health triage assistant grounded in "
-        "WHO ANC 2016, MoHFW JSY/JSSK/PMSMA, and ICMR guidelines. After your Hindi "
+        "You are a Hindi-first health triage assistant grounded in "
+        "verified WHO, MoHFW, ICMR and public health sources. Before your Hindi "
         "natural-language reply, append a JSON block of exactly the form:\n"
         '{"triage_label": "RED|AMBER|GREEN", "referral_action": "<string>", '
         '"red_flags_detected": ["<string>", ...]}\n'
@@ -162,7 +163,7 @@ except ImportError:  # pragma: no cover — fallback when eval-core absent
             return None
         return obj
 @scorer(metrics=[accuracy(), mean()])
-def mnh_factuality_scorer() -> "Scorer":
+def health_factuality_scorer() -> "Scorer":
     """Composite scorer for the factuality task.
 
     Score = 0.5 × triage_label_correct + 0.5 × checklist_coverage.
@@ -279,5 +280,5 @@ def factuality() -> "Task":
     return Task(
         dataset=MemoryDataset(samples),
         solver=[system_message(_load_system_prompt()), generate()],
-        scorer=mnh_factuality_scorer(),
+        scorer=health_factuality_scorer(),
     )

@@ -1,4 +1,4 @@
-"""MaaSwasth eval-core package.
+"""HealthEval eval-core package.
 
 Houses the four methodology layers owned by teammate ``eval-core``:
 
@@ -18,8 +18,9 @@ Current contract:
     * ``data/schemas.py`` contains the canonical Pydantic v2 schemas.
     * The shared-system-prompt schema-first triage contract is:
       ``{"triage_label": "RED|AMBER|GREEN", "referral_action": str,
-      "red_flags_detected": list[str]}`` plus the natural-language Hindi
-      response. Parse failures count as incorrect.
+      "red_flags_detected": list[str], "triage_reason": str}`` plus the
+      natural-language Hindi response. Older artefacts may omit
+      ``triage_reason``. Parse failures count as incorrect.
 """
 
 from __future__ import annotations
@@ -28,5 +29,6 @@ __all__ = [
     "judges",
     "stats",
     "osce",
+    "reference_risk",
     "stratify",
 ]

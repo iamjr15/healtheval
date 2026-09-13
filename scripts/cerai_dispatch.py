@@ -360,7 +360,7 @@ def bind_panel_model_fn(**kwargs: Any) -> PanelModelFn:
     return fn
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Dispatch MaaSwasth eval prompts through CeRAI's InterfaceManagerClient.",
+        description="Dispatch HealthEval eval prompts through CeRAI's InterfaceManagerClient.",
     )
     p.add_argument("--prompts", required=True, type=Path,
                    help="Path to data/prompts.yaml (or any prompt YAML).")

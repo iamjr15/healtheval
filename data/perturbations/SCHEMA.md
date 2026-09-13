@@ -4,9 +4,9 @@ Inputs to the real-world robustness audit (`docs/perturbation_audit.md`).
 
 ## Design note
 
-Both evaluators (MaaSwasth jury and CeRAI metric-layer) score the SAME response text.
+Both evaluators (HealthEval jury and CeRAI metric-layer) score the SAME response text.
 Base responses are sourced from `results/panel_refset_eval/sarvam-105b.json` — sarvam-105b's
-outputs under the maaswasth system prompt (JSON triage block + Hindi prose). Perturbations
+outputs under the healtheval system prompt (JSON triage block + Hindi prose). Perturbations
 modify only the Hindi prose portion; the JSON triage block is held constant so prose-form
 variation is isolated as the single variable under test.
 

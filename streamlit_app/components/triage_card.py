@@ -1,10 +1,10 @@
 """RED / AMBER / GREEN triage badge component.
 
-Renders a parsed ``triage_json`` block (per ``data/system_prompt_mnh.yaml``
-output schema: ``{triage_label, referral_action, red_flags_detected}``)
-as a colour-coded badge with the label, referral action, and any red
-flags surfaced.  Used by Live Demo (Step 1 of the dispatch flow) and
-Case Detail Modal (Case Explorer drill-down).
+Renders a parsed ``triage_json`` block (per ``data/system_prompt_health.yaml``
+output schema: ``{triage_label, referral_action, red_flags_detected,
+triage_reason}``) as a colour-coded badge with the label, referral action,
+short reason, and any red flags surfaced.  Used by Live Demo (Step 1 of the
+dispatch flow) and Case Detail Modal (Case Explorer drill-down).
 
 The component takes a parsed ``dict`` (or ``None`` for a parse failure)
 rather than a raw string — parsing belongs to ``eval.judges
@@ -16,8 +16,8 @@ from typing import Any, Mapping
 
 import streamlit as st
 
-# Color anchors per the WHO ANC 2016 + MoHFW PMSMA triage taxonomy as
-# encoded in ``data/system_prompt_mnh.yaml``.  Keeping these as text /
+# Color anchors per the HealthEval response triage contract as
+# encoded in ``data/system_prompt_health.yaml``.  Keeping these as text /
 # emoji semantics rather than hex literals so the dashboard's
 # "no hard-coded numbers" grep test (which targets Likert-range decimals)
 # isn't confused.
@@ -35,7 +35,7 @@ _TRIAGE_VISUAL: dict[str, dict[str, str]] = {
     "GREEN": {
         "emoji": "🟢",
         "color": "#079455",
-        "label": "GREEN — routine pregnancy guidance",
+        "label": "GREEN — routine health guidance",
     },
 }
 
@@ -63,6 +63,7 @@ def render_triage_card(triage: Mapping[str, Any] | None) -> None:
     )
     referral = triage.get("referral_action", "(missing)")
     red_flags = triage.get("red_flags_detected") or []
+    reason = str(triage.get("triage_reason") or "").strip()
 
     badge_html = (
         f'<div style="display:inline-block;padding:0.4rem 0.9rem;'
@@ -78,6 +79,9 @@ def render_triage_card(triage: Mapping[str, Any] | None) -> None:
         st.markdown(f"**Recommended action:** `{referral}`")
     with cols[1]:
         st.markdown(f"**Red flags found:** {len(red_flags)}")
+
+    if reason:
+        st.markdown(f"**Model reason:** {reason}")
 
     if red_flags:
         with st.expander("Red flags quoted from the model", expanded=False):

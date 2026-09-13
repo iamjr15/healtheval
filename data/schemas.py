@@ -65,7 +65,7 @@ class SourceCitation(_Base):
     url: Optional[HttpUrl] = None
     paragraph_id: Optional[str] = Field(
         default=None,
-        description="Human-readable paragraph anchor (e.g., 'WHO ANC 2016 §3.2').",
+        description="Human-readable paragraph anchor (e.g., 'WHO diabetes fact sheet: symptoms').",
     )
 class TriageLabel(str, Enum):
     RED = "RED"
@@ -77,16 +77,16 @@ class ReferralAction(str, Enum):
     """Closed set of structured referral actions every panel model must choose from.
 
     Mapped to Track 1 risk-stratification semantics:
-      * continue              — no escalation, routine ANC self-management
-      * refer_anm             — refer to community-level ASHA/ANM
+      * continue              — no escalation, routine health education
+      * refer_health_worker             — refer to community-level ASHA/ANM
       * refer_phc             — refer to Primary Health Centre (same-day or scheduled)
-      * refer_mch_emergency   — obstetric emergency, dial 108 / nearest MCH
+      * refer_emergency   — medical emergency, dial India 112 / nearest emergency department
     """
 
     CONTINUE = "continue"
-    REFER_ANM = "refer_anm"
+    REFER_HEALTH_WORKER = "refer_health_worker"
     REFER_PHC = "refer_phc"
-    REFER_MCH_EMERGENCY = "refer_mch_emergency"
+    REFER_EMERGENCY = "refer_emergency"
 
 
 class TriageOutput(_Base):
@@ -102,15 +102,29 @@ class TriageOutput(_Base):
     red_flags_detected: list[str] = Field(
         default_factory=list,
         description=(
-            "WHO ANC 2016 / MoHFW PMSMA danger signs the model recognised in "
+            "Source-grounded health danger signs the model recognised in "
             "the user message. Empty list ↔ no red flag detected."
         ),
+    )
+    triage_reason: Optional[str] = Field(
+        default=None,
+        description="Short human-readable reason for the triage label.",
     )
 
     @field_validator("red_flags_detected")
     @classmethod
     def _strip_red_flags(cls, v: list[str]) -> list[str]:
         return [s.strip() for s in v if s and s.strip()]
+
+    @field_validator("triage_reason")
+    @classmethod
+    def _strip_triage_reason(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped or None
+
+
 class SystemPromptOutputSchema(_Base):
     """YAML mirror of `TriageOutput` so YAML readers don't need to import Python."""
 
@@ -118,22 +132,23 @@ class SystemPromptOutputSchema(_Base):
     referral_action: list[
         Literal[
             "continue",
-            "refer_anm",
+            "refer_health_worker",
             "refer_phc",
-            "refer_mch_emergency",
+            "refer_emergency",
         ]
     ]
     red_flags_detected: Literal["list[str]"]
+    triage_reason: Literal["str"]
 
 
 class SystemPromptConfig(_Base):
-    """Shared MNH system prompt applied uniformly across all 5 panel models."""
+    """Shared health system prompt applied uniformly across all configured panel models."""
 
     name: str
     version: int = Field(default=1, ge=1)
     language: Literal["hi-IN"] = "hi-IN"
     system_prompt: Annotated[str, StringConstraints(min_length=200)] = Field(
-        ..., description="Hindi-first MNH assistant instruction (~300 tokens)."
+        ..., description="Hindi-first health assistant instruction (~300 tokens)."
     )
     output_schema: SystemPromptOutputSchema
     sources: list[SourceCitation]
@@ -151,7 +166,7 @@ class ProviderName(str, Enum):
 
 
 class ModelPanelEntry(_Base):
-    """One candidate model under the shared MNH system prompt."""
+    """One candidate model under the shared health system prompt."""
 
     model_id: str
     provider: ProviderName
@@ -214,7 +229,7 @@ class ScoringRubric(_Base):
 
 
 class ConstitutionPrinciple(_Base):
-    """One MNH judge-rubric principle.
+    """One health judge-rubric principle.
 
     Field aliases (eval-core integration, May 10 2026):
       * `id` accepts `principle_id` (eval-core's loader name).
@@ -256,13 +271,12 @@ class RiskTier(str, Enum):
     HIGH = "high"
 
 
-class PregnancyStage(str, Enum):
-    PRE_CONCEPTION = "pre_conception"
-    T1 = "T1"
-    T2 = "T2"
-    T3 = "T3"
-    POSTPARTUM = "postpartum"
-    LACTATION = "lactation"
+class AgeGroup(str, Enum):
+    CHILD = "child"
+    ADOLESCENT = "adolescent"
+    ADULT = "adult"
+    OLDER_ADULT = "older_adult"
+    UNSPECIFIED = "unspecified"
 
 
 class LanguageProficiency(_Base):
@@ -272,14 +286,15 @@ class LanguageProficiency(_Base):
 
 
 class PersonaMetadata(_Base):
-    """Equity-stratification axes hand-tagged on each persona (the equity-axis schema)."""
+    """Equity-stratification axes health-tagged on each persona (the equity-axis schema)."""
 
     caste: Literal["SC", "ST", "OBC", "General", "unspecified"]
-    geography: Literal["urban", "peri_urban", "rural", "aspirational_district"]
+    geography: Literal["urban", "peri_urban", "rural", "aspirational_district", "unspecified"]
     education_level: Literal[
         "none", "primary", "secondary", "higher", "unspecified"
     ]
     language_proficiency: LanguageProficiency
+    age_group: AgeGroup = AgeGroup.UNSPECIFIED
     frontline_worker_proxy: bool = Field(
         default=False,
         description="True if persona phrases as ASHA/ANM, False if end-beneficiary.",
@@ -289,12 +304,8 @@ class PersonaMetadata(_Base):
 class Persona(_Base):
     name: str
     hindi_name: str
-    age: int = Field(..., ge=12, le=60)
-    parity: Optional[str] = Field(
-        default=None, description="OB shorthand e.g. 'G1P0', 'G3P2'."
-    )
-    gestation_weeks: Optional[int] = Field(default=None, ge=0, le=44)
-    pregnancy_stage: PregnancyStage
+    age: int = Field(..., ge=0, le=120)
+    age_group: AgeGroup
     risk_tier: RiskTier
     hidden_diagnosis: str
     hidden_action: ReferralAction
@@ -321,14 +332,14 @@ class CrisisFlag(str, Enum):
     NONE = "none"
     SUICIDAL_IDEATION = "suicidal_ideation"
     DOMESTIC_VIOLENCE = "domestic_violence"
-    OBSTETRIC_EMERGENCY = "obstetric_emergency"
+    MEDICAL_EMERGENCY = "medical_emergency"
 
 
 class Prompt(_Base):
-    id: Annotated[str, StringConstraints(pattern=r"^(hand|rt)-\d{3}$")]
+    id: Annotated[str, StringConstraints(pattern=r"^(health|rt)-\d{3}$")]
     hindi_text: str
     devanagari_text: str = Field(
-        ..., description="Same as hindi_text; explicit field for downstream parsing."
+        ..., description="Devanagari equivalent of the Hindi, Roman-Hindi or Hinglish prompt."
     )
     category: PromptCategory
     expected_triage_label: TriageLabel
@@ -340,15 +351,12 @@ class Prompt(_Base):
     source_paragraph_id: Optional[str] = None
     persona_metadata: PersonaMetadata
     notes: Optional[str] = None
+    health_topic: str = "general_health"
 
     @model_validator(mode="after")
-    def _hindi_equals_devanagari(self) -> "Prompt":
-        if self.devanagari_text != self.hindi_text:
-            raise ValueError(
-                "devanagari_text MUST equal hindi_text for hand-written prompts; "
-                "Roman + Hinglish variants are generated at runtime by "
-                "eval/cross_language.py (the script-variance check)."
-            )
+    def _requires_devanagari(self) -> "Prompt":
+        if not any("\u0900" <= c <= "\u097f" for c in self.devanagari_text):
+            raise ValueError("devanagari_text must contain a Devanagari equivalent")
         return self
 
 
@@ -357,11 +365,11 @@ class Prompts(_Base):
     datasheet: Datasheet
 
     @model_validator(mode="after")
-    def _hand_count_at_least_30(self) -> "Prompts":
-        hand = [p for p in self.prompts if p.id.startswith("hand-")]
+    def _curated_count_at_least_30(self) -> "Prompts":
+        hand = [p for p in self.prompts if p.id.startswith("health-")]
         if len(hand) < 30:
             raise ValueError(
-                f"need ≥30 hand-* prompts (got {len(hand)}); "
+                f"need ≥30 health-* prompts (got {len(hand)}); "
                 "redteam rt-* prompts are added later by Promptfoo medical:* plugins"
             )
         return self
@@ -381,7 +389,10 @@ class ReferenceItem(_Base):
     wrong_answer_examples: list[str] = Field(default_factory=list)
     source_url: HttpUrl
     source_paragraph: str
+    source_citations: list[dict] = Field(default_factory=list)
     persona_metadata: PersonaMetadata
+    health_topic: str = "general_health"
+    review_status: Literal["pending_clinical_review", "clinician_reviewed"] = "pending_clinical_review"
     script_variant_required: list[
         Literal["devanagari", "roman", "hinglish"]
     ] = Field(
@@ -402,7 +413,7 @@ class ReferenceSet(_Base):
     items: list[ReferenceItem] = Field(..., min_length=20, max_length=30)
     datasheet: Datasheet
 class EquityCategory(str, Enum):
-    """Lead-defined 6-category taxonomy for hand-translated EquityMedQA Hindi prompts.
+    """Lead-defined 6-category taxonomy for health-translated EquityMedQA Hindi prompts.
 
     Replaces the prior `EquitySubcategory` enum (May 10 2026 round 2). Maps
     each prompt to ONE primary equity dimension; multi-axis prompts use
@@ -421,6 +432,7 @@ class TranslationMethod(str, Enum):
     """Provenance of the Hindi translation per the translated-subset provenance check / Codex R6."""
 
     CLAUDE_LLM_DRAFT = "claude_llm_draft"
+    AI_AUTHORED_DRAFT = "ai_authored_draft"
     HUMAN_NATIVE_SPEAKER = "human_native_speaker"
     HUMAN_BILINGUAL_REVIEWER = "human_bilingual_reviewer"
 
@@ -454,12 +466,13 @@ class QualityGateStatus(str, Enum):
 
 
 class EquityItem(_Base):
-    """One hand-translated EquityMedQA TRINDS Hindi prompt (the translated-subset provenance check)."""
+    """One health-translated EquityMedQA TRINDS Hindi prompt (the translated-subset provenance check)."""
 
     id: Annotated[str, StringConstraints(pattern=r"^eq-\d{3}$")]
+    base_ref_id: Optional[str] = None
     english_source: str = Field(
         ...,
-        description="Verbatim English source text from EquityMedQA TRINDS.",
+        description="English prompt or description; provenance identifies translated or AI-authored data.",
         validation_alias=AliasChoices("english_source", "source_english_text"),
     )
     hindi_text: str
@@ -485,12 +498,12 @@ class EquityItem(_Base):
 
 
 class EquitySubset(_Base):
-    items: list[EquityItem] = Field(..., min_length=30, max_length=60)
+    items: list[EquityItem] = Field(..., min_length=30, max_length=180)
     datasheet: Datasheet
 
 
 class SafetyCategory(str, Enum):
-    """Lead-defined 6-category taxonomy for hand-translated MedSafetyBench Hindi.
+    """Lead-defined 6-category taxonomy for health-translated MedSafetyBench Hindi.
 
     Replaces the prior `SafetyAMACategory` enum (May 10 2026 round 2). Maps
     each prompt to ONE primary safety failure mode the prompt is probing for.
@@ -505,12 +518,12 @@ class SafetyCategory(str, Enum):
 
 
 class SafetyItem(_Base):
-    """One hand-translated MedSafetyBench Hindi prompt (the translated-subset provenance check)."""
+    """One health-translated MedSafetyBench Hindi prompt (the translated-subset provenance check)."""
 
     id: Annotated[str, StringConstraints(pattern=r"^sf-\d{3}$")]
     english_source: str = Field(
         ...,
-        description="Verbatim English source text from MedSafetyBench.",
+        description="English prompt or description; provenance identifies translated or AI-authored data.",
         validation_alias=AliasChoices("english_source", "source_english_text"),
     )
     hindi_text: str
@@ -549,6 +562,8 @@ class JudgeScore(_Base):
     score: float = Field(..., ge=1, le=5)
     rationale: Optional[str] = None
     self_judging_dropped: bool = False
+    judge_parse_succeeded: bool = True
+    judge_error_type: Optional[str] = None
 
 
 class BootstrapCI(_Base):
@@ -573,7 +588,7 @@ class BetaBinomialCI(_Base):
     prior_alpha: float = Field(default=1.0, gt=0)
     prior_beta: float = Field(default=1.0, gt=0)
 EquityAxis = Literal[
-    "pregnancy_stage",
+    "age_group",
     "risk_tier",
     "language_script",
     "frontline_worker_proxy",
@@ -602,14 +617,14 @@ OSCEAxis = Literal[
 """Canonical 12 mini-OSCE axes (the Mini-OSCE design). Mirrors eval-core OSCE_AXES.
 
 Maps to the triage and rubric contract's 12 axes as follows (Tu et al. Nature 2025 sub-axes adapted
-to MNH context):
+to health context):
   history_taking          ↔ History-taking completeness + Information sufficiency
   examination             ↔ (clinical exam axis — N/A for chat; scored 1.0)
   diagnosis_accuracy      ↔ Diagnostic accuracy (hidden_diagnosis identified)
   management_plan         ↔ Management plan correctness (hidden_action recommended)
   communication           ↔ Communication clarity (Hindi register)
   empathy                 ↔ Empathy
-  professionalism         ↔ Citation-grounding + Pregnancy-safety
+  professionalism         ↔ Citation-grounding + Patient safety
   structure               ↔ Multi-turn conversational coherence
   efficiency              ↔ Information sufficiency (no excessive turns)
   safety_net              ↔ Escalation/referral correctness
@@ -716,7 +731,7 @@ __all__ = [
     "ConstitutionPrinciple",
     "Constitution",
     "RiskTier",
-    "PregnancyStage",
+    "AgeGroup",
     "LanguageProficiency",
     "PersonaMetadata",
     "Persona",

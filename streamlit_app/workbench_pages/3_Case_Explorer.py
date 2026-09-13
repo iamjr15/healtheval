@@ -5,12 +5,17 @@ from typing import Any, Mapping
 
 import streamlit as st
 
+from eval.reference_risk import (
+    REFERENCE_RISK_ORDER,
+    reference_risk_label,
+    reference_risk_tier,
+)
 from streamlit_app.components.case_detail_modal import render_case_detail
+from streamlit_app.config import CERAI_DB_SCORE_CUTOFF
 from streamlit_app.data_loaders import (
-    load_cerai_metrics,
+    load_cerai_db_scores,
     load_constitution,
     load_hitl_reviews,
-    load_inspect_safety,
     load_methodology_artifact,
     load_reference_set,
     methodology_for_model,
@@ -21,13 +26,17 @@ from streamlit_app.data_loaders import (
 _LOW_JUDGE_SCORE_CUTOFF: int = 2
 
 
+def _cerai_routes_from_scores(scores: Mapping[str, Any] | None) -> bool:
+    mean_score = (scores or {}).get("mean")
+    try:
+        return float(mean_score) < CERAI_DB_SCORE_CUTOFF
+    except (TypeError, ValueError):
+        return False
+
+
 def _index_rows(rows: list[dict]) -> dict[str, dict]:
     """Index methodology rows by ``prompt_id`` for O(1) lookup."""
     return {str(r.get("prompt_id")): r for r in rows if r.get("prompt_id")}
-
-
-def _index_outputs(outputs: Mapping[str, dict]) -> dict[str, dict]:
-    return {str(k): dict(v) for k, v in outputs.items()}
 
 
 def _row_low_judge_score(row: Mapping[str, Any], cutoff: float) -> bool:
@@ -44,26 +53,33 @@ def _build_table_row(
     item: Mapping[str, Any],
     methodology_outputs: Mapping[str, Any],
     methodology_row: Mapping[str, Any] | None,
-    cerai_outputs: Mapping[str, Any],
-    inspect_outputs: Mapping[str, Any],
+    cerai_scores_by_prompt: Mapping[str, Any],
     hitl_by_prompt: Mapping[str, list],
 ) -> dict[str, Any]:
     pid = item.get("id", "")
     m_out = methodology_outputs.get(pid, {})
-    cerai_out = cerai_outputs.get(pid, {})
-    inspect_out = inspect_outputs.get(pid, {})
+    cerai_scores = cerai_scores_by_prompt.get(pid, {})
+    decision = (methodology_row or {}).get("decision", {}) if methodology_row else {}
+    tier = reference_risk_tier(item)
 
     return {
         "ref_id": pid,
+        "reference_risk_tier": tier,
+        "reference_risk": reference_risk_label(tier),
         "hindi_text": (
             (item.get("hindi_text", "") or "")[:80]
             + ("…" if len(item.get("hindi_text", "") or "") > 80 else "")
         ),
-        "expected_triage_label": item.get("expected_triage_label", "?"),
-        "parse_ok": bool(m_out.get("parse_succeeded", methodology_row.get("parse_succeeded") if methodology_row else False)),
-        "maaswasth_flagged": bool(m_out.get("flagged")),
-        "cerai_flagged": bool(cerai_out.get("flagged")),
-        "inspect_flagged": bool(inspect_out.get("flagged")),
+        "healtheval_flagged": bool(m_out.get("flagged")),
+        "judge_failures": int(
+            decision.get(
+                "n_failed_judge_cells",
+                m_out.get("n_failed_judge_cells", 0),
+        )
+        or 0
+    ),
+        "cerai_db_mean": cerai_scores.get("mean"),
+        "cerai_flagged": _cerai_routes_from_scores(cerai_scores),
         "hitl_status": (
             f"{len(hitl_by_prompt.get(pid, []))} review(s)"
             if hitl_by_prompt.get(pid)
@@ -76,54 +92,36 @@ def _filter_passes(
     item: Mapping[str, Any],
     table_row: Mapping[str, Any],
     methodology_row: Mapping[str, Any] | None,
-    cerai_out: Mapping[str, Any],
-    inspect_out: Mapping[str, Any],
     *,
-    parse_failed: str,
-    maaswasth_flagged: str,
+    healtheval_flagged: str,
     cerai_disagrees: str,
-    inspect_disagrees: str,
     expected_urgent: bool,
-    triage_green_but_expected_refer: bool,
     low_judge_score: bool,
     hitl_status_filter: str,
     persona_caste: str,
     persona_geo: str,
     persona_edu: str,
+    reference_risk_filter: str,
 ) -> bool:
-    if parse_failed != "all":
-        want = parse_failed == "true"
-        if (not table_row["parse_ok"]) != want:
-            return False
-    if maaswasth_flagged != "all":
-        want = maaswasth_flagged == "true"
-        if bool(table_row["maaswasth_flagged"]) != want:
+    if healtheval_flagged != "all":
+        want = healtheval_flagged == "true"
+        if bool(table_row["healtheval_flagged"]) != want:
             return False
     if cerai_disagrees != "all":
         disagrees = (
             bool(table_row["cerai_flagged"])
-            != bool(table_row["maaswasth_flagged"])
+            != bool(table_row["healtheval_flagged"])
         )
         want = cerai_disagrees == "true"
         if disagrees != want:
             return False
-    if inspect_disagrees != "all":
-        disagrees = (
-            bool(table_row["inspect_flagged"])
-            != bool(table_row["maaswasth_flagged"])
-        )
-        want = inspect_disagrees == "true"
-        if disagrees != want:
-            return False
     if expected_urgent and item.get("expected_safety_action") != "urgent":
         return False
-    if triage_green_but_expected_refer:
-        triage = (methodology_row or {}).get("triage_parsed") or {}
-        if not (
-            triage.get("triage_label") == "GREEN"
-            and item.get("expected_safety_action") in ("refer", "urgent")
-        ):
-            return False
+    if (
+        reference_risk_filter != "any"
+        and table_row["reference_risk_tier"] != reference_risk_filter
+    ):
+        return False
     if low_judge_score and not _row_low_judge_score(
         methodology_row or {}, _LOW_JUDGE_SCORE_CUTOFF
     ):
@@ -175,8 +173,7 @@ def _open_modal(prompt_id: str, ctx: dict) -> None:
             prompt_id=prompt_id,
             reference_item=ctx["ref_by_id"].get(prompt_id),
             methodology_row=ctx["methodology_rows_by_id"].get(prompt_id),
-            cerai_row=ctx["cerai_rows_by_id"].get(prompt_id),
-            inspect_row=ctx["inspect_rows_by_id"].get(prompt_id),
+            cerai_scores=ctx["cerai_scores_by_prompt"].get(prompt_id),
             constitution_principles=ctx["principles"],
             hitl_reviews=ctx["hitl_reviews"],
             session_reviews=st.session_state.get("hitl_reviews", []),
@@ -213,7 +210,7 @@ def main() -> None:
             "Panel model",
             model_ids,
             index=0,
-            help="Choose which model's saved n=30 results to inspect.",
+            help="Choose which model's saved n=30 results to review.",
         )
     elif model_ids:
         selected_model = model_ids[0]
@@ -222,12 +219,7 @@ def main() -> None:
     methodology_outputs = artefact.get("evaluator_outputs", {}) or {}
     methodology_rows_by_id = _index_rows(list(methodology_rows))
 
-    cerai = load_cerai_metrics()
-    inspect = load_inspect_safety()
-    cerai_outputs = _index_outputs(cerai.get("evaluator_outputs", {}) or {})
-    inspect_outputs = _index_outputs(inspect.get("evaluator_outputs", {}) or {})
-    cerai_rows_by_id = _index_rows(list(cerai.get("rows", []) or []))
-    inspect_rows_by_id = _index_rows(list(inspect.get("rows", []) or []))
+    cerai_scores_by_prompt = load_cerai_db_scores().get("scores_by_prompt", {})
 
     principles = list(load_constitution().get("principles", []) or [])
 
@@ -243,33 +235,24 @@ def main() -> None:
         f"Complete result file: `{selected_path.name}` "
         f"(model `{selected_model or 'single target'}`)."
     )
-    parse_failed = st.sidebar.selectbox(
-        "Triage JSON failed to parse",
-        ["all", "true", "false"],
-        index=0,
-        format_func=_yes_no_any_label,
-    )
-    maaswasth_flagged = st.sidebar.selectbox(
-        "MaaSwasth Safety Method flagged risk",
+    healtheval_flagged = st.sidebar.selectbox(
+        "HealthEval flags response",
         ["all", "true", "false"],
         index=0,
         format_func=_yes_no_any_label,
     )
     cerai_disagrees = st.sidebar.selectbox(
-        "CeRAI disagrees with MaaSwasth Safety Method",
-        ["all", "true", "false"],
-        index=0,
-        format_func=_yes_no_any_label,
-    )
-    inspect_disagrees = st.sidebar.selectbox(
-        "Inspect scorer disagrees with MaaSwasth Safety Method",
+        "CeRAI DB decision disagrees with HealthEval Safety Method",
         ["all", "true", "false"],
         index=0,
         format_func=_yes_no_any_label,
     )
     expected_urgent = st.sidebar.checkbox("Expected urgent referral")
-    triage_green_but_expected_refer = st.sidebar.checkbox(
-        "Model said GREEN, but reference expected referral"
+    reference_risk_filter = st.sidebar.selectbox(
+        "Reference risk tier",
+        ["any"] + list(REFERENCE_RISK_ORDER),
+        index=0,
+        format_func=lambda v: "Any" if v == "any" else reference_risk_label(v),
     )
     low_judge_score = st.sidebar.checkbox(
         f"Any judge score ≤ {_LOW_JUDGE_SCORE_CUTOFF:g}"
@@ -303,55 +286,63 @@ def main() -> None:
             it,
             methodology_outputs,
             m_row,
-            cerai_outputs,
-            inspect_outputs,
+            cerai_scores_by_prompt,
             hitl_by_prompt,
         )
         if not _filter_passes(
             it,
             row,
             m_row,
-            cerai_outputs.get(pid, {}),
-            inspect_outputs.get(pid, {}),
-            parse_failed=parse_failed,
-            maaswasth_flagged=maaswasth_flagged,
+            healtheval_flagged=healtheval_flagged,
             cerai_disagrees=cerai_disagrees,
-            inspect_disagrees=inspect_disagrees,
             expected_urgent=expected_urgent,
-            triage_green_but_expected_refer=triage_green_but_expected_refer,
             low_judge_score=low_judge_score,
             hitl_status_filter=hitl_status_filter,
             persona_caste=persona_caste,
             persona_geo=persona_geo,
             persona_edu=persona_edu,
+            reference_risk_filter=reference_risk_filter,
         ):
             continue
         table_rows.append(row)
 
     st.markdown(f"### {len(table_rows)} of {len(items)} cases match")
+    st.caption(
+        "`Reference risk` describes the prompt. `Flags response = true` means "
+        "that evaluator judged the saved model answer as needing human review; "
+        "`false` means it passed that evaluator. CeRAI uses the Docker DB mean "
+        "of Accuracy, Relevance, and Hallucination scores."
+    )
 
     if table_rows:
         import pandas as pd  # noqa: PLC0415
 
         df = pd.DataFrame(table_rows)
         st.dataframe(
-            df,
+            df[
+                [
+                    "ref_id",
+                    "reference_risk",
+                    "hindi_text",
+                    "healtheval_flagged",
+                    "cerai_db_mean",
+                    "cerai_flagged",
+                ]
+            ],
             width="stretch",
             hide_index=True,
             column_config={
                 "ref_id": "Ref id",
+                "reference_risk": "Reference risk",
                 "hindi_text": "Hindi prompt (truncated)",
-                "expected_triage_label": "Expected triage",
-                "parse_ok": "Triage JSON parsed",
-                "maaswasth_flagged": "MaaSwasth Safety Method flagged",
-                "cerai_flagged": "CeRAI flagged",
-                "inspect_flagged": "Inspect flagged",
-                "hitl_status": "Human review",
+                "healtheval_flagged": "HealthEval flags response",
+                "cerai_db_mean": "CeRAI DB mean",
+                "cerai_flagged": "CeRAI routes response",
             },
         )
 
         choice = st.selectbox(
-            "Select a case to inspect",
+            "Select a case to open",
             options=[r["ref_id"] for r in table_rows],
             key="case_explorer_choice",
         )
@@ -362,8 +353,7 @@ def main() -> None:
             ctx = {
                 "ref_by_id": ref_by_id,
                 "methodology_rows_by_id": methodology_rows_by_id,
-                "cerai_rows_by_id": cerai_rows_by_id,
-                "inspect_rows_by_id": inspect_rows_by_id,
+                "cerai_scores_by_prompt": cerai_scores_by_prompt,
                 "principles": principles,
                 "hitl_reviews": hitl_repo,
             }

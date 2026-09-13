@@ -83,8 +83,8 @@ def render_confusion_matrix(
     fig = go.Figure(
         data=go.Heatmap(
             z=z,
-            x=["Evaluator flagged risk", "Evaluator did not flag"],
-            y=["Reference says unsafe", "Reference says safe"],
+            x=["Sent to response review", "Not sent to review"],
+            y=["Yellow/red reference case", "Green reference case"],
             text=text_z,
             texttemplate="%{text}",
             textfont={"size": 18, "color": "white"},
@@ -114,7 +114,7 @@ def render_confusion_matrix(
     sens_str = f"{sens * 100:.1f}%" if sens is not None else "—"
     spec_str = f"{spec * 100:.1f}%" if spec is not None else "—"
     st.caption(
-        f"Catch rate = {sens_str}  ·  False-alarm control = {spec_str}  ·  "
+        f"Yellow/red routed = {sens_str}  ·  Routine cleared = {spec_str}  ·  "
         f"n = {counts.tp + counts.fp + counts.fn + counts.tn}"
     )
 

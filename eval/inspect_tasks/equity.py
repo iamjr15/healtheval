@@ -1,47 +1,4 @@
-"""Inspect ``equity`` task wrapper with per-stratum Solvers
-(the companion evaluator-comparison design2 + the equity-axis schema).
-
-Wraps the n=60 hand-translated EquityMedQA TRINDS Hindi equity probes
-(``data/equity_subset_hindi.yaml``, lead's deliverable; sourced from
-Pfohl et al. *EquityMedQA*, **Nature Medicine 2024**,
-doi:10.1038/s41591-024-03258-2) in the canonical Inspect schema.
-
-Per the equity-axis schema 8-axis equity stratification, each Sample is tagged with a
-``stratum`` axis name and value. Each axis gets its own custom Solver
-(``equity_solver_<axis>``) — these are functionally identical (they all
-issue ``system_message`` + ``generate``) but they exist as separate
-Solvers so that:
-
-1. The Inspect log differentiates them, making it trivial to slice
-   results by stratum in the §6.7 equity disparity table without
-   post-hoc filtering.
-2. Future work can swap a per-stratum prompt augmentation (e.g.
-   counterfactual demographic substitution per Pfohl 2024 ablation) into
-   one Solver without disturbing the others.
-
-The 8 axes (per the equity-axis schema, sourced as cited):
-
-* ``pregnancy_stage``     — antenatal trimester / postpartum
-* ``risk_tier``           — low / high-risk pregnancy (PMSMA framing)
-* ``language_script``     — Devanagari / Roman / Hinglish-mixed (Khullar)
-* ``frontline_worker``    — ASHA / ANM / patient (proxy for digital
-                            literacy)
-* ``crisis_overlap``      — concurrent climate / IPV / disaster overlay
-* ``geography``           — urban / rural / aspirational district
-* ``caste_community``     — NFHS-5 SC/ST/OBC/General (Lee 2025 PLOS DH)
-* ``education_disability``— literacy + visual/hearing impairment (Pfohl
-                            2024 + Panda AccessEval EMNLP 2025)
-
-Scorer: per-Sample sensitivity (correct AMBER/RED on equity-fail
-prompts) and specificity (no false RED on benign prompts), aggregated
-per stratum into the disparity-ratio table at §6.7 (handled in
-:mod:`eval.stratify`, eval-core's deliverable). The Inspect Score
-returned here is a per-prompt 0/1 binary so that ``accuracy()`` rolls
-up cleanly per Sample's ``stratum`` metadata.
-
-Native Inspect log archived to ``results/inspect/equity/`` per the saved Inspect log
-Hr 27-29.5.
-"""
+"""Inspect wrapper for the AI-authored HealthEval challenge set; clinical review pending."""
 
 from __future__ import annotations
 
@@ -82,7 +39,7 @@ except ImportError:  # pragma: no cover
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-EQUITY_SUBSET_PATH = _REPO_ROOT / "data" / "equity_subset_hindi.yaml"
+EQUITY_SUBSET_PATH = _REPO_ROOT / "data" / "equity_challenges_hindi.yaml"
 
 # the equity-axis schema — 8-axis equity stratification. The canonical names mirror
 # ``eval.stratify.EQUITY_AXES`` (eval-core's deliverable) so per-axis
@@ -93,7 +50,7 @@ try:
     EQUITY_STRATA: tuple[str, ...] = _EVAL_CORE_EQUITY_AXES
 except ImportError:  # pragma: no cover — eval-core not yet shipped
     EQUITY_STRATA = (
-        "pregnancy_stage",
+        "age_group",
         "risk_tier",
         "language_script",
         "frontline_worker_proxy",
@@ -105,7 +62,7 @@ except ImportError:  # pragma: no cover — eval-core not yet shipped
 
 
 def _load_equity_subset() -> list[dict[str, Any]]:
-    """Load lead's n=60 hand-translated EquityMedQA TRINDS Hindi YAML."""
+    """Load lead's paired general-health equity Hindi YAML."""
     if not EQUITY_SUBSET_PATH.exists():
         return []
     with EQUITY_SUBSET_PATH.open("r", encoding="utf-8") as fh:
@@ -122,7 +79,7 @@ def _load_equity_subset() -> list[dict[str, Any]]:
 def _make_stratum_solver(axis: str):
     """Build a Solver specialised to one the equity-axis schema equity axis.
 
-    The Solver routes through the shared MNH system prompt and standard
+    The Solver routes through the shared health system prompt and standard
     ``generate()``; the per-axis differentiation is metadata-only today
     so that the Inspect log slices cleanly. Future work can hook a
     counterfactual augmenter here per Pfohl 2024.
@@ -148,7 +105,7 @@ def stratum_solvers() -> dict[str, Any]:
         return {axis: None for axis in EQUITY_STRATA}
     return {axis: _make_stratum_solver(axis) for axis in EQUITY_STRATA}
 @scorer(metrics=[accuracy(), mean()])
-def mnh_equity_scorer() -> "Scorer":
+def health_equity_scorer() -> "Scorer":
     """Per-Sample equity correctness; rolls up to per-stratum disparities."""
 
     async def score(state: "TaskState", target: "Target") -> "Score":
@@ -193,13 +150,13 @@ def _samples_for_axis(axis: str) -> list["Sample"]:
         if not isinstance(row, dict):
             continue
         # Each prompt is tagged with its primary equity axis in
-        # data/equity_subset_hindi.yaml. Prompts may be tagged with
+        # data/equity_challenges_hindi.yaml. Prompts may be tagged with
         # multiple axes; we duplicate them across each axis so that
         # per-axis disparity rolls up correctly.
-        row_axes = row.get("equity_axes") or [row.get("equity_axis")]
+        row_axes = row.get("equity_axes") or [row.get("equity_axis_tag") or row.get("equity_axis")]
         if axis not in {a for a in row_axes if a}:
             continue
-        prompt_text = row.get("prompt") or row.get("text") or ""
+        prompt_text = row.get("hindi_text") or row.get("prompt") or row.get("text") or ""
         target = row.get("expected_triage_label") or "AMBER"
         samples.append(
             Sample(
@@ -210,14 +167,14 @@ def _samples_for_axis(axis: str) -> list["Sample"]:
                     "stratum_value": (row.get("stratum_value_by_axis") or {}).get(axis)
                     or row.get("stratum_value"),
                     "prompt_id": row.get("id") or row.get("prompt_id"),
-                    "counterfactual_pair_id": row.get("counterfactual_pair_id"),
+                    "counterfactual_pair_id": row.get("base_ref_id") or row.get("counterfactual_pair_id"),
                 },
             )
         )
     return samples
 @task
 def equity() -> "Task":
-    """Inspect task — EquityMedQA TRINDS Hindi (the translated-subset provenance check) × 8 strata (the equity-axis schema).
+    """Inspect task — HealthEval paired Hindi equity challenges (the translated-subset provenance check) × 8 strata (the equity-axis schema).
 
     The Task uses a shared scorer and bundles all axis Samples; the
     per-axis Solver tags each row's metadata so the Inspect log + the
@@ -236,7 +193,7 @@ def equity() -> "Task":
 
     if not all_samples:
         # Inert placeholder per axis so Task(...) constructs even
-        # before data/equity_subset_hindi.yaml lands.
+        # before data/equity_challenges_hindi.yaml lands.
         for axis in EQUITY_STRATA:
             all_samples.append(
                 Sample(
@@ -262,5 +219,5 @@ def equity() -> "Task":
     return Task(
         dataset=MemoryDataset(all_samples),
         solver=[system_message(_load_system_prompt()), generate()],
-        scorer=mnh_equity_scorer(),
+        scorer=health_equity_scorer(),
     )

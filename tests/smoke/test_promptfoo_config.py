@@ -20,10 +20,10 @@ pytestmark = pytest.mark.smoke
 
 # The smoke-test contract is "all shipped panel ids must appear".
 REQUIRED_MODEL_IDS = {
-    "sarvam-30b",
+    "sarvam-105b-conversations",
     "sarvam-105b",
     "claude-sonnet-4-6",
-    "gemini-2-5-pro",
+    "gemini-2.5-pro",
 }
 
 
@@ -115,10 +115,11 @@ def test_promptfoo_cli_available_or_skipped():
 
     Skips when the CLI is absent because Docker provides it inside the
     Promptfoo profile services."""
-    if shutil.which("promptfoo") is None:
+    binary = shutil.which("promptfoo") or str(Path(__file__).resolve().parents[2] / "node_modules/.bin/promptfoo")
+    if not Path(binary).exists():
         pytest.skip("promptfoo CLI not installed in this environment — see README.md")
     result = subprocess.run(
-        ["promptfoo", "--version"],
+        [binary, "--version"],
         capture_output=True,
         text=True,
         timeout=10,

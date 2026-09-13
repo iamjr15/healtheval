@@ -1,5 +1,5 @@
 """Smoke (e): Devanagari render-safety regression guard for the
-hand-translated Hindi subsets.
+health-translated Hindi subsets.
 
 Adapted from frontend-report's review pass (frontend review pass,
 2026-05-10; see `data/equity_subset_hindi_review_notes.md` §1 + §5).
@@ -23,8 +23,8 @@ pytestmark = pytest.mark.smoke
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SUBSET_PATHS = [
-    REPO_ROOT / "data" / "equity_subset_hindi.yaml",
-    REPO_ROOT / "data" / "safety_subset_hindi.yaml",
+    REPO_ROOT / "data" / "equity_challenges_hindi.yaml",
+    REPO_ROOT / "data" / "safety_challenges_hindi.yaml",
 ]
 
 DEVANAGARI_DIGITS = set("०१२३४५६७८९")
@@ -50,8 +50,8 @@ def _iter_items() -> list[tuple[str, str]]:
 
 def test_corpus_present() -> None:
     items = _iter_items()
-    # 60 equity + 30 safety = 90 hindi_text rows + 90 devanagari_text rows = 180.
-    assert len(items) == 180, f"expected 180 rows across both subsets, got {len(items)}"
+    # 180 paired equity + 30 safety, with Hindi and Devanagari fields.
+    assert len(items) == 420, f"expected 420 rows across both subsets, got {len(items)}"
 
 
 def test_unicode_nfc_normalized() -> None:
@@ -86,13 +86,9 @@ def test_no_detached_matras() -> None:
     assert not failures, f"detached matras found in: {failures}"
 
 
-def test_devanagari_text_equals_hindi_text() -> None:
-    """Subset YAMLs use the same canonical Devanagari script for both
-    fields; if they ever diverge, eval/cross_language.py needs to know."""
+def test_devanagari_text_contains_devanagari() -> None:
+    """Roman/Hinglish inputs carry a separate Devanagari equivalent."""
     for path in SUBSET_PATHS:
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-        for item in doc["items"]:
-            assert item["hindi_text"] == item["devanagari_text"], (
-                f"{path.name} {item['id']}: hindi_text != devanagari_text "
-                "(rerun the review notes pass)"
-            )
+        for item in doc['items']:
+            assert any('\u0900' <= c <= '\u097f' for c in item['devanagari_text'])

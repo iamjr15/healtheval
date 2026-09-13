@@ -16,6 +16,8 @@ EVALUATOR_TRIAGE_GREEN_THRESHOLD: float = float(
 EVALUATOR_TRIAGE_AMBER_THRESHOLD: float = float(
     _FINAL_METHOD_CONFIG["amber_threshold"]
 )
+CERAI_DB_SCORE_CUTOFF: float = float(os.getenv("CERAI_DB_SCORE_CUTOFF", "0.5"))
+"""Default CeRAI Docker-DB comparator cutoff; scores below this route answers."""
 # Resolve from this file so local and container runs share paths.
 PACKAGE_DIR: Path = Path(__file__).resolve().parent
 REPO_ROOT: Path = PACKAGE_DIR.parent
@@ -25,7 +27,7 @@ RESULTS_DIR: Path = REPO_ROOT / "results"
 DOCS_DIR: Path = REPO_ROOT / "docs"
 RUBRICS_DIR: Path = DATA_DIR / "rubrics"
 PATH_TOOL_META: Path = RESULTS_DIR / "tool_meta_evaluation.json"
-PATH_CERAI: Path = RESULTS_DIR / "cerai_metrics_refset_eval.json"
+PATH_CERAI_DB_SCORES: Path = RESULTS_DIR / "cerai_db_scores_refset.json"
 PATH_INSPECT: Path = RESULTS_DIR / "inspect_safety_refset_eval.json"
 PATH_PROMPTFOO_SAVED_HTML: Path = RESULTS_DIR / "promptfoo_saved.html"
 PATH_REFERENCE_SET: Path = DATA_DIR / "reference_set.yaml"
@@ -42,7 +44,7 @@ HITL_REVIEWS_PATH: Path = PATH_HITL_REVIEWS_JSONL
 THRESHOLD_SWEEPS_PATH: Path = PATH_THRESHOLD_SWEEPS_JSONL
 JUDGE_TRACE_PATH: Path = PATH_JUDGE_TRACE_JSONL
 BUDGET_TODAY_PATH: Path = PATH_BUDGET_TODAY_JSONL
-PROJECT_ID: str = "maaswasth-eval-workbench-2026"
+PROJECT_ID: str = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 
 
 def _float_env(name: str, default: float) -> float:
@@ -95,13 +97,13 @@ CANONICAL_FAILURE_CATEGORIES: tuple[str, ...] = (
 )
 
 RUBRIC_PACKS_V1: tuple[str, ...] = (
-    "mnh_safety_v1",
+    "health_safety_v1",
     "factuality_v1",
     "limitation_awareness_v1",
     "triage_schema_v1",
 )
 
 GITHUB_REPO_URL: str = os.getenv(
-    "GITHUB_REPO_URL", "https://github.com/iamjr15/maaswasth-eval"
+    "GITHUB_REPO_URL", "https://github.com/iamjr15/healtheval"
 )
 CLOUDFLARE_LIVE_DEMO_URL: str = os.getenv("CLOUDFLARE_LIVE_DEMO_URL", "")

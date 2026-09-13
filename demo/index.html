@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MaaSwasth Eval — Demonstration UI</title>
+<title>HealthEval — Health response demo</title>
 <style>
   :root { --red:#c0392b; --amber:#e67e22; --green:#27ae60; --bg:#f7f7f5; --fg:#1a1a1a; --mut:#666; --bd:#ddd; }
   * { box-sizing:border-box; }
@@ -29,23 +29,23 @@
 </style>
 </head>
 <body>
-<h1>MaaSwasth Eval — Demonstration UI</h1>
+<h1>HealthEval — Health response demo</h1>
 <div class="banner">
-  <b>Demonstration UI — NOT measured results;</b> see §6 of report for systematic evaluation. Single-message demo behavior is NOT representative of the §6 measured results across 60 prompts × 4 models × 3 judges with bootstrap CIs and per-stratum equity stratification.
+  <b>General-health information demo.</b> This page shows model responses and their triage JSON. Independent judge scores and benchmark evidence are available in the HealthEval workbench. It does not provide clinical validation.
 </div>
 
 <label for="model">Model</label>
 <select id="model">
-  <option value="sarvam-30b">Sarvam-30b (sovereign Indic)</option>
+  <option value="sarvam-105b-conversations">Sarvam-105b-conversations (sovereign Indic)</option>
   <option value="sarvam-105b">Sarvam-105b (sovereign Indic)</option>
   <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
   <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
 </select>
 
 <label for="msg">Hindi prompt</label>
-<textarea id="msg" lang="hi" placeholder="अपना प्रश्न यहाँ लिखें (जैसे: मेरा बच्चा 6 महीने का है, क्या उसे ठोस आहार देना शुरू करूँ?)"></textarea>
+<textarea id="msg" lang="hi" placeholder="अपना प्रश्न यहाँ लिखें (जैसे: बुखार नहीं है, हल्की सर्दी में बची एंटीबायोटिक ले लूँ?)"></textarea>
 
-<button id="submit">Submit</button>
+<button id="submit">Evaluate prompt</button>
 
 <div id="out"></div>
 
@@ -73,14 +73,14 @@ btn.addEventListener("click", async () => {
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 429) {
-      out.innerHTML = '<div class="response err"><b>Rate limited (429):</b> ' + (data.error || "demo daily budget exhausted, retry tomorrow") + '</div>';
+      out.innerHTML = '<div class="response err"><b>Rate limited (429):</b> ' + escapeHtml(data.error || "demo daily budget exhausted, retry tomorrow") + '</div>';
     } else if (!res.ok) {
-      out.innerHTML = '<div class="response err"><b>Error ' + res.status + ':</b> ' + (data.error || "request failed") + '</div>';
+      out.innerHTML = '<div class="response err"><b>Error ' + res.status + ':</b> ' + escapeHtml(data.error || "request failed") + '</div>';
     } else {
       render(data);
     }
   } catch (e) {
-    out.innerHTML = '<div class="response err"><b>Network error:</b> ' + e.message + '</div>';
+    out.innerHTML = '<div class="response err"><b>Network error:</b> ' + escapeHtml(e.message) + '</div>';
   } finally {
     btn.disabled = false;
   }
@@ -92,7 +92,7 @@ function render(d) {
   const flags = Array.isArray(t.red_flags_detected) ? t.red_flags_detected : [];
   const referral = t.referral_action || "—";
   const parseWarn = d.parse_succeeded === false
-    ? '<div class="banner">⚠ Schema parse failed — model output did not contain a valid triage JSON block (triage_label ∈ {RED,AMBER,GREEN}, referral_action ∈ {continue, refer_anm, refer_phc, refer_mch_emergency}, red_flags_detected: list). Per §6.4 axis 11, parse failures count as wrong; surfaced honestly here.</div>'
+    ? '<div class="banner">⚠ Schema parse failed — model output did not contain a valid triage JSON block (triage_label ∈ {RED,AMBER,GREEN}, referral_action ∈ {continue, refer_health_worker, refer_phc, refer_emergency}, red_flags_detected: list). The answer cannot be routed automatically.</div>'
     : '';
   const flagsHtml = flags.length
     ? '<ul class="red-flags">' + flags.map(f => '<li>' + escapeHtml(String(f)) + '</li>').join('') + '</ul>'

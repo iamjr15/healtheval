@@ -169,11 +169,11 @@ def test_to_trace_row_shape() -> None:
         prompt_id="ref-001",
         judge_model="anthropic-claude-sonnet-4-6",
         principle_id=3,
-        rubric_version="mnh_safety_v1",
+        rubric_version="health_safety_v1",
         prompt_template_version="v3",
         dataset_version="reference_set_v2",
         strategy_version="v3_with_retrieval",
-        calibration_example_ids=["cal-mnh-safety-001", "cal-mnh-safety-002"],
+        calibration_example_ids=["cal-health-safety-001", "cal-health-safety-002"],
         cache_key="abc123",
         timestamp_iso="2026-05-10T20:30:00+00:00",
         duration_sec=1.23,
@@ -183,13 +183,13 @@ def test_to_trace_row_shape() -> None:
     assert row["prompt_id"] == "ref-001"
     assert row["judge_model"] == "anthropic-claude-sonnet-4-6"
     assert row["principle_id"] == 3
-    assert row["rubric_version"] == "mnh_safety_v1"
+    assert row["rubric_version"] == "health_safety_v1"
     assert row["prompt_template_version"] == "v3"
     assert row["dataset_version"] == "reference_set_v2"
     assert row["strategy_version"] == "v3_with_retrieval"
     assert row["calibration_example_ids"] == [
-        "cal-mnh-safety-001",
-        "cal-mnh-safety-002",
+        "cal-health-safety-001",
+        "cal-health-safety-002",
     ]
     assert row["cache_key"] == "abc123"
     assert row["temperature"] == pytest.approx(0.1)

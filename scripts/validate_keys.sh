@@ -46,7 +46,7 @@ require_var() {
 check_sarvam() {
   require_var SARVAM_API_KEY || return 1
   local model resp
-  for model in sarvam-m sarvam-105b; do
+  for model in sarvam-105b-conversations sarvam-105b; do
     resp=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 \
       -X POST https://api.sarvam.ai/v1/chat/completions \
       -H "api-subscription-key: ${SARVAM_API_KEY}" \
@@ -90,7 +90,7 @@ check_google() {
   fi
 }
 
-echo "=== MaaSwasth Eval Harness — API-key smoke test ==="
+echo "=== HealthEval Eval Harness — API-key smoke test ==="
 check_sarvam
 check_anthropic
 check_google

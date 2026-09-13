@@ -150,8 +150,8 @@ def per_stratum_power(
                 "target_power": 0.8,
             }
 
-    The the per-stratum sample-size justification results table reads this dict directly. The the limitations summary
-    submission paragraph cites the ``sufficient_for_medium_effects``
+    The per-stratum sample-size results table reads this dict directly.
+    The limitations summary cites the ``sufficient_for_medium_effects``
     flags honestly — under-powered strata are reported as
     *exploratory*.
     """

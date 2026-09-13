@@ -1,0 +1,72 @@
+{
+  "validated_at": "2026-09-13T12:55:50.342689+00:00",
+  "benchmark_fingerprint": "8246b93ab61767fb41ce030b0bf65695edacf1f585d7a146415f3d52a924d9bc",
+  "dataset_version": "healtheval_health_v1",
+  "models": [
+    {
+      "model": "sarvam-105b-conversations",
+      "cases": 30,
+      "valid_triage": 30,
+      "judge_cells": 150,
+      "failed_judge_cells": 0,
+      "answers_routed_to_review": 0,
+      "independent_judges_per_response": 1,
+      "triage_matches_draft_reference": 30
+    },
+    {
+      "model": "sarvam-105b",
+      "cases": 30,
+      "valid_triage": 30,
+      "judge_cells": 150,
+      "failed_judge_cells": 0,
+      "answers_routed_to_review": 2,
+      "independent_judges_per_response": 1,
+      "triage_matches_draft_reference": 29
+    },
+    {
+      "model": "gemini-2.5-pro",
+      "cases": 30,
+      "valid_triage": 30,
+      "judge_cells": 150,
+      "failed_judge_cells": 0,
+      "answers_routed_to_review": 0,
+      "independent_judges_per_response": 1,
+      "triage_matches_draft_reference": 30
+    }
+  ],
+  "anthropic_status": "live call blocked by insufficient account credits",
+  "python_tests": {
+    "passed": 155,
+    "failed": 0,
+    "skipped": 0
+  },
+  "worker_tests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "promptfoo_deepeval": {
+    "passed": 1,
+    "failed": 0,
+    "errors": 0
+  },
+  "clinical_validation": "pending; software tests are not clinical validation",
+  "browser_pages_passed": 9,
+  "remote_repository": "https://github.com/iamjr15/healtheval",
+  "pre_publication_ahead_commits": 19,
+  "publication_note": "Validation snapshot; repository publication is recorded in Git commit history.",
+  "publication_checks": {
+    "validated_at": "2026-09-13T13:18:34.947558+00:00",
+    "python_tests_passed": 155,
+    "worker_tests_passed": 5,
+    "current_evidence_validated": true,
+    "readme_local_links_valid": true,
+    "browser": {
+      "overview_updated_metric_labels": true,
+      "overview_exceptions": 0,
+      "human_review_queue_flagged_answer_visible": true,
+      "human_review_queue_missing_comparator_disagreement": false,
+      "human_review_queue_exceptions": 0,
+      "safety_thresholds_exceptions": 0
+    }
+  }
+}

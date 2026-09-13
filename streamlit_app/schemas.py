@@ -8,9 +8,9 @@ schema drift between ``eval/`` outputs and the dashboard surfaces in
 review rather than at render time.
 
 If a field is optional in the source artefact, the TypedDict marks it
-``NotRequired[...]``.  Per Codex r2 #3 + the audit-trace design of the shipped workbench design: existing
-``JudgeScore`` shape is preserved across v1/v2/v3 — v3-only fields land
-in ``judge_trace.jsonl`` rather than on this row.
+``NotRequired[...]``. Failed judge calls are kept separate from response
+quality scores so the dashboard can show evaluator infrastructure issues
+without treating them as unsafe answers.
 """
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ class JudgeScoreRow(TypedDict, total=False):
     principle_id: int
     score: float
     rationale: NotRequired[str]
+    judge_parse_succeeded: NotRequired[bool]
+    judge_error_type: NotRequired[str]
     rubric_version: NotRequired[str]
     calibration_example_ids: NotRequired[list[str]]
 
@@ -39,6 +41,10 @@ class TriageDecision(TypedDict, total=False):
     flagged: bool
     jury_safety_mean: float
     n_cells: int
+    n_total_cells: NotRequired[int]
+    n_failed_judge_cells: NotRequired[int]
+    judge_score_incomplete: NotRequired[bool]
+    routing_reason: NotRequired[str]
     principle_ids: list[int]
 
 
@@ -47,6 +53,7 @@ class MethodologyRow(TypedDict, total=False):
     prompt: str
     response: str
     response_len: int
+    reference_risk_tier: NotRequired[Literal["green", "yellow", "red"]]
     latency_sec: float
     parse_succeeded: bool
     triage_parsed: NotRequired[dict[str, Any]]
@@ -62,9 +69,13 @@ class EvaluatorOutput(TypedDict, total=False):
     triage_label: NotRequired[Literal["RED", "AMBER", "GREEN"]]
     jury_safety_mean: NotRequired[float]
     n_cells: NotRequired[int]
+    n_total_cells: NotRequired[int]
+    n_failed_judge_cells: NotRequired[int]
+    judge_score_incomplete: NotRequired[bool]
     judge_mean_all_principles: NotRequired[float]
     parse_succeeded: NotRequired[bool]
     n_judge_scores: NotRequired[int]
+    reference_risk_tier: NotRequired[Literal["green", "yellow", "red"]]
 
 
 class MethodologyArtifact(TypedDict, total=False):
@@ -94,6 +105,18 @@ class NativeRow(TypedDict, total=False):
     specificity: SensSpecCell
 
 
+class RiskTierRow(TypedDict, total=False):
+    evaluator: str
+    reference_risk_tier: Literal["green", "yellow", "red"]
+    reference_risk_label: str
+    n: int
+    n_models: int
+    flagged: int
+    metric: str
+    success_k: int
+    success_rate: float
+
+
 class ToolMetaArtifact(TypedDict, total=False):
     ref_section: str
     reference_set: str
@@ -101,6 +124,7 @@ class ToolMetaArtifact(TypedDict, total=False):
     n_evaluators_native: int
     evaluators_native: list[str]
     table_native: list[NativeRow]
+    table_risk_tiers: NotRequired[list[RiskTierRow]]
     table_response_triage: NotRequired[list[NativeRow]]
     calibration_metadata: NotRequired[dict[str, Any]]
     semantic_notes: NotRequired[list[str] | dict[str, Any]]
@@ -201,7 +225,7 @@ class CalibrationPack(TypedDict, total=False):
 # results/hitl_reviews.jsonl — append-only governance record (one JSON per
 # line).  Schema mirrors the shipped workbench design the HITL persistence contract.
 class HITLOriginalEvaluators(TypedDict, total=False):
-    maaswasth_safety_method: Literal["safe", "unsafe"]
+    healtheval_safety_method: Literal["safe", "unsafe"]
     cerai: Literal["safe", "unsafe"]
     inspect: Literal["safe", "unsafe"]
 

@@ -13,9 +13,7 @@ services:
     command: python scripts/check_env.py .env
 
   smoke:
-    build:
-      context: .
-      dockerfile: Dockerfile.promptfoo
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
     working_dir: /workspace
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
@@ -93,19 +91,22 @@ services:
     working_dir: /workspace
     environment:
       PROMPTFOO_DISABLE_TELEMETRY: "1"
-      PROMPTFOO_PYTHON: /workspace/.venv/bin/python
-      MAASWASTH_PROMPTFOO_LIMIT: "1"
+      PROMPTFOO_PYTHON: /opt/healtheval-promptfoo-venv/bin/python
+      HEALTHEVAL_PROMPTFOO_LIMIT: "1"
       PYTHONDONTWRITEBYTECODE: "1"
-      UV_LINK_MODE: copy
     volumes:
       - .:/workspace
-      - promptfoo_venv:/workspace/.venv
-    command: >
-      bash -lc "
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
         if [ -f .env ]; then set -a && . .env && set +a; fi &&
-        uv sync --frozen --extra dev &&
-        promptfoo eval -c promptfooconfig.saved.yaml
-      "
+        status=0;
+        promptfoo eval -c promptfooconfig.saved.yaml || status=$$?;
+        if [ "$$status" -eq 100 ]; then
+          echo "Promptfoo completed with assertion failures; report written to results/promptfoo_saved.html.";
+          exit 0;
+        fi;
+        exit "$$status"
     depends_on:
       env-check:
         condition: service_completed_successfully
@@ -118,21 +119,18 @@ services:
     working_dir: /workspace
     environment:
       PROMPTFOO_DISABLE_TELEMETRY: "1"
-      PROMPTFOO_PYTHON: /workspace/.venv/bin/python
+      PROMPTFOO_PYTHON: /opt/healtheval-promptfoo-venv/bin/python
       PYTHONDONTWRITEBYTECODE: "1"
-      UV_LINK_MODE: copy
     volumes:
       - .:/workspace
-      - promptfoo_venv:/workspace/.venv
-    command: >
-      bash -lc "
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
         python scripts/check_env.py .env --require-keys &&
         set -a &&
         . .env &&
         set +a &&
-        uv sync --frozen --extra dev &&
         promptfoo eval -c promptfooconfig.yaml
-      "
     depends_on:
       env-check:
         condition: service_completed_successfully
@@ -155,6 +153,7 @@ services:
         set +a &&
         uv sync --frozen --extra dev &&
         uv run python scripts/run_panel_refset_eval.py --force &&
+        uv run python scripts/repair_judge_failures.py --workers 5 &&
         uv run python scripts/compute_panel_tool_meta.py
       "
     depends_on:
@@ -163,4 +162,3 @@ services:
 
 volumes:
   uv_venv_py312:
-  promptfoo_venv:

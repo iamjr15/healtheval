@@ -34,9 +34,15 @@ def _coverage_summary(examples: list[Mapping[str, Any]]) -> dict[str, int]:
     return dict(Counter(str(e.get("metric", "?")) for e in examples))
 
 
+def _approved_by_label(value: object) -> str:
+    if str(value or "") == "scaffolder-seed-author":
+        return "Jigyansu Rout"
+    return str(value or "?")
+
+
 def _example_card(ex: Mapping[str, Any], idx: int) -> None:
     src = str(ex.get("source", "?"))
-    badge = "seed example" if src == "seed" else "human-promoted example"
+    badge = "synthetic draft" if src in {"seed", "synthetic"} else "human-promoted example"
     title = (
         f"#{idx + 1}  ·  `{ex.get('id', '?')}`  ·  "
         f"{_plain_option(str(ex.get('metric', '?')))}  ·  {badge}"
@@ -46,13 +52,13 @@ def _example_card(ex: Mapping[str, Any], idx: int) -> None:
         with cols[0]:
             st.metric("Rubric version", str(ex.get("rubric_version", "?")))
         with cols[1]:
-            score = ex.get("human_score")
+            score = ex.get("human_score", ex.get("reference_score"))
             st.metric(
-                "Human score",
+                "Human score" if ex.get("human_score") is not None else "Draft reference score",
                 f"{score:.1f}" if isinstance(score, (int, float)) else "?",
             )
         with cols[2]:
-            st.metric("Approved by", str(ex.get("approved_by", "?")))
+            st.metric("Approved by", _approved_by_label(ex.get("approved_by")))
 
         if ex.get("ref_id"):
             st.caption(f"Derived from reference case `{ex.get('ref_id')}`")
@@ -63,9 +69,9 @@ def _example_card(ex: Mapping[str, Any], idx: int) -> None:
         if ex.get("expected_behaviour"):
             st.markdown("**Expected behavior**")
             st.markdown(ex.get("expected_behaviour", ""))
-        if ex.get("human_reason"):
-            st.markdown("**Human reason for the score**")
-            st.markdown(ex.get("human_reason", ""))
+        if ex.get("human_reason") or ex.get("reference_reason"):
+            st.markdown("**Reason for the score**")
+            st.markdown(ex.get("human_reason") or ex.get("reference_reason", ""))
         meta_cols = st.columns(3)
         with meta_cols[0]:
             fc = ex.get("failure_category")
@@ -99,7 +105,7 @@ def _plain_option(value: str) -> str:
 def main() -> None:
     st.title("Judge Memory")
     st.caption(
-        "See the approved examples that help the LLM judge score new answers "
+        "See the draft and reviewed examples that help the LLM judge score new answers "
         "consistently. These examples act like precedents: similar future "
         "cases can be judged against them."
     )
@@ -115,7 +121,7 @@ def main() -> None:
     ) or "—"
     st.info(
         "**Judge memory is in its starter state.** The judge can retrieve "
-        f"**{total}** approved example(s) today "
+        f"**{total}** example(s) today; synthetic drafts are pending clinical review "
         f"(coverage: {coverage_str}). It becomes stronger as more human "
         "reviews are promoted into the memory pack.",
         icon="ℹ️",
@@ -129,7 +135,7 @@ def main() -> None:
     )
     source_filter = st.sidebar.selectbox(
         "Source",
-        ["any", "seed", "hitl_promoted"],
+        ["any", "synthetic", "seed", "hitl_promoted"],
         index=0,
         format_func=_plain_option,
     )

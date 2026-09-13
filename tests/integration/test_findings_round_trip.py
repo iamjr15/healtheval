@@ -5,7 +5,7 @@ Per eval-core's round-2 contract lock — the fixture is a fully populated
 FindingsSchema (one FindingsItem with the 36-cell self-judging-avoided
 jury, bootstrap CIs, Beta-Binomial CIs, krippendorff_alpha=0.84, all 8
 EquityAxis strata). If a downstream layer ever silently changes the
-wire format, this test catches it before submission.
+wire format, this test catches it before release.
 """
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ def test_sample_findings_round_trips(repo_root):
         )
     axes = {s.axis for s in item.equity_strata}
     expected_axes = {
-        "pregnancy_stage", "risk_tier", "language_script",
+        "age_group", "risk_tier", "language_script",
         "frontline_worker_proxy", "crisis_flag_overlap", "geography",
         "caste_community", "education_disability_combined",
     }

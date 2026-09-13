@@ -14,7 +14,7 @@ faithfulness, mini-OSCE 12 axes per §5.5) and every model, compute:
 The 8 axes (locked per the equity-axis schema v1.4-restored; cite-paths echoed inline
 so the report caption can drop them in verbatim):
 
-1. ``pregnancy_stage``         — pre-conception / T1 / T2 / T3 / postpartum
+1. ``age_group``         — child / adolescent / adult / older adult
                                   / lactation (6 buckets).
 2. ``risk_tier``               — low / medium / high.
 3. ``language_script``         — Devanagari / Roman / Hinglish-mixed
@@ -54,7 +54,7 @@ from .stats import krippendorff_alpha
 
 logger = logging.getLogger(__name__)
 EQUITY_AXES: tuple[str, ...] = (
-    "pregnancy_stage",
+    "age_group",
     "risk_tier",
     "language_script",
     "frontline_worker_proxy",
@@ -204,7 +204,7 @@ def stratify(
         Optional config block.  Recognised keys::
 
             {
-                "axes":                 ["pregnancy_stage", ...],   # subset of EQUITY_AXES
+                "axes":                 ["age_group", ...],   # subset of EQUITY_AXES
                 "degradation_threshold": 0.10,                      # default 10 %
             }
 

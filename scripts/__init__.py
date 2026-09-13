@@ -1,4 +1,4 @@
-"""maaswasth-eval ``scripts`` package.
+"""healtheval ``scripts`` package.
 
 Regular package marker (not implicit / PEP 420) so ``from scripts import
 cerai_dispatch`` resolves consistently across uv-managed venvs, IDEs, and

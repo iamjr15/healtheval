@@ -35,10 +35,10 @@ def _build_minimal_findings():
         "plan_version": "v1.5.3",
         "items": [
             {
-                "model_id": "sarvam-30b",
-                "prompt_id": "hand-001",
+                "model_id": "sarvam-105b-conversations",
+                "prompt_id": "health-001",
                 "triage_label_predicted": "RED",
-                "referral_action_predicted": "refer_mch_emergency",
+                "referral_action_predicted": "refer_emergency",
                 "triage_parse_succeeded": True,
                 "response_text": "नमस्ते — स्मोक टेस्ट उत्तर।",
                 "latency_ms": 1234.0,

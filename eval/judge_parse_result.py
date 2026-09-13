@@ -126,6 +126,8 @@ class JudgeParseResult:
     rubric_breakdown: dict[str, float] = field(default_factory=dict)
     failure_type: Optional[str] = None
     evidence: list[str] = field(default_factory=list)
+    judge_parse_succeeded: bool = True
+    judge_error_type: Optional[str] = None
 
     @classmethod
     def parse(
@@ -154,6 +156,8 @@ class JudgeParseResult:
                 rendered_judge_prompt=rendered_prompt,
                 score=1.0,
                 rationale="empty judge response (treated as score=1.0 worst Likert)",
+                judge_parse_succeeded=False,
+                judge_error_type="empty_judge_response",
             )
 
         # Try the v3 Pydantic path first.  Three extraction layers, in
@@ -223,6 +227,8 @@ class JudgeParseResult:
             rationale=(
                 f"unparseable judge response (treated as score=1.0): {raw[:120]!r}"
             ),
+            judge_parse_succeeded=False,
+            judge_error_type="unparseable_judge_response",
         )
 
     @classmethod
@@ -259,6 +265,8 @@ class JudgeParseResult:
             rendered_judge_prompt=rendered_prompt,
             score=1.0,
             rationale=f"unparseable judge response (treated as score=1.0): {raw[:120]!r}",
+            judge_parse_succeeded=False,
+            judge_error_type="unparseable_judge_response",
         )
 
     def to_trace_row(
@@ -308,6 +316,8 @@ class JudgeParseResult:
             "failure_type": self.failure_type,
             "evidence": self.evidence,
             "validation_errors": self.validation_errors,
+            "judge_parse_succeeded": self.judge_parse_succeeded,
+            "judge_error_type": self.judge_error_type,
             "timestamp": timestamp_iso,
             "duration_sec": duration_sec,
         }

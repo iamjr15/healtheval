@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import streamlit as st
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from streamlit_app.config import (
     GITHUB_REPO_URL,
@@ -98,7 +103,7 @@ def _pages() -> list[st.Page]:  # type: ignore[name-defined]
 
 def main() -> None:
     st.set_page_config(
-        page_title="MaaSwasth Evaluation Workbench",
+        page_title="HealthEval Evaluation Workbench",
         layout="wide",
         initial_sidebar_state="expanded",
         menu_items={
@@ -107,11 +112,11 @@ def main() -> None:
                 f"{GITHUB_REPO_URL}/issues" if GITHUB_REPO_URL else None
             ),
             "About": (
-                "MaaSwasth Evaluation Workbench — checks whether Hindi "
-                "maternal-health chatbot answers are safe, source-grounded, "
+                "HealthEval Evaluation Workbench — checks whether Hindi "
+                "health chatbot answers are safe, source-grounded, "
                 "and easy to audit. Automated evidence stays unchanged; "
                 "live runs and human reviews are added on top. "
-                f"Cloud Run project: `{PROJECT_ID}`."
+
             ),
         },
     )

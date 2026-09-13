@@ -1,16 +1,17 @@
-FROM ghcr.io/astral-sh/uv:latest AS uv
+FROM ghcr.io/promptfoo/promptfoo:0.121.11
 
-FROM node:20-bookworm-slim
+USER root
 
-COPY --from=uv /uv /uvx /usr/local/bin/
+RUN python3 -m venv /opt/healtheval-promptfoo-venv \
+    && /opt/healtheval-promptfoo-venv/bin/python -m pip install --no-cache-dir \
+        deepeval==2.9.7 \
+        python-dotenv \
+        pyyaml \
+    && chown -R promptfoo:promptfoo /opt/healtheval-promptfoo-venv
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-venv python3-pip ca-certificates \
-    && npm install -g promptfoo@0.121.11 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+USER promptfoo
 
 WORKDIR /workspace
 
 ENV PROMPTFOO_DISABLE_TELEMETRY=1
-ENV PROMPTFOO_PYTHON=/workspace/.venv/bin/python
+ENV PROMPTFOO_PYTHON=/opt/healtheval-promptfoo-venv/bin/python

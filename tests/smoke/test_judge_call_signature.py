@@ -72,11 +72,11 @@ def test_judge_panel_returns_expected_shape_when_mocked():
                     "response": "तुरंत PHC जाएं।",
                     "triage_json": {
                         "triage_label": "RED",
-                        "referral_action": "refer_mch_emergency",
+                        "referral_action": "refer_emergency",
                         "red_flags_detected": ["bleeding"],
                     },
                 },
-                panel_model_id="sarvam-30b",
+                panel_model_id="sarvam-105b-conversations",
             )
         except TypeError as e:
             # Signature drift — the API is in flight; flag rather than fail.

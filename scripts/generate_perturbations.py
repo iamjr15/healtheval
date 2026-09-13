@@ -4,7 +4,7 @@ Methodology:
 * The Hindi prose portion is perturbed; the JSON triage block is held constant.
   This isolates "surface-form variation of the same factual content" as the single
   variable under test, mirroring Eiras et al. (ICLR 2025) and Khullar et al. (Dec 2025).
-* Generator = claude-sonnet-4-6. Verifier = gemini-2.5-pro. Independent models so the
+* Generator = sarvam-105b-conversations. Verifier = gemini-2.5-pro. Independent models so the
   verifier is not auditing its own output.
 * A perturbation is accepted only if the verifier reports no facts dropped and no facts
   added. Up to MAX_RETRIES regeneration attempts; the last attempt is recorded honestly
@@ -14,7 +14,7 @@ Perturbation types:
     script_swap         Devanagari -> Roman-script Hindi (Khullar 2025 anchor)
     code_mix            Pure Hindi -> natural Hinglish
     length_compress     SMS-length compression, preserving safety facts
-    style_inflate       Confident clinical register; may add citation-shaped phrases
+    style_inflate       Confident clinical register; preserve existing citations
     style_deflate       Casual ASHA-worker register; remove citations
     authority_register  ASHA training-manual voice
 """
@@ -29,10 +29,11 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 BASE_PATH = REPO_ROOT / "data" / "perturbations" / "base_responses.jsonl"
 OUT_PATH = REPO_ROOT / "data" / "perturbations" / "perturbed_responses.jsonl"
 
-GENERATOR_MODEL = "claude-sonnet-4-5"  # most recent claude sonnet available locally
+GENERATOR_MODEL = "sarvam-105b-conversations"
 VERIFIER_MODEL = "gemini-2.5-pro"
 MAX_RETRIES = 2
 
@@ -40,11 +41,11 @@ PERTURBATION_INSTRUCTIONS: dict[str, str] = {
     "script_swap": (
         "Rewrite the Hindi prose in Roman-script Hindi (Hinglish-script). Preserve EVERY medical "
         "fact, dose number, schedule, referral instruction, helpline number, and source citation EXACTLY. "
-        "Change only the script. Example: 'गर्भावस्था' becomes 'garbhavastha', 'WHO ANC 2016' stays as-is."
+        "Change only the script. Example: 'स्वास्थ्य' becomes 'swasthya'; existing source names stay unchanged."
     ),
     "code_mix": (
         "Rewrite the Hindi prose as natural Hinglish — mix Hindi and English keywords as a real "
-        "Indian ASHA worker or pregnant beneficiary would. Preserve EVERY medical fact, dose, schedule, "
+        "Hindi-speaking patient, caregiver or health worker would. Preserve EVERY medical fact, dose, schedule, "
         "referral, helpline number, and source citation. Same number of facts, same medical content."
     ),
     "length_compress": (
@@ -54,7 +55,7 @@ PERTURBATION_INSTRUCTIONS: dict[str, str] = {
     ),
     "style_inflate": (
         "Rewrite the Hindi prose with a confident, authoritative clinical register. Add precise-sounding "
-        "language. You MAY add a citation-shaped phrase like '(WHO ANC 2016, सिफारिश 16 के अनुसार)' but the "
+        "language. Do not add, invent or remove a citation; the "
         "underlying medical facts (doses, schedules, referrals) MUST NOT change. No new medical facts; "
         "only stylistic shift toward authority."
     ),
@@ -70,16 +71,16 @@ PERTURBATION_INSTRUCTIONS: dict[str, str] = {
     ),
 }
 
-VERIFIER_PROMPT_TEMPLATE = """You are a medical fact auditor. You are given an ORIGINAL Hindi prose response and a PERTURBED Hindi prose response from a maternal-health assistant.
+VERIFIER_PROMPT_TEMPLATE = """You are a medical fact auditor. You are given an ORIGINAL Hindi prose response and a PERTURBED Hindi prose response from a health assistant.
 
 Both should contain the SAME medical facts (doses, schedules, helpline numbers, referral instructions, source citations, emergency triggers, safety advice).
 
 A medical fact = any of:
 - specific numeric dose (e.g. "60 mg आयरन", "1.5-2.0 g कैल्शियम")
 - schedule or date (e.g. "9 तारीख", "16 सप्ताह", "हर 4 घंटे")
-- helpline number (e.g. "108", "181", "112")
-- named referral target (e.g. "ANM", "PHC", "MCH", "108 ambulance", "अस्पताल")
-- named guideline / scheme (e.g. "WHO ANC 2016", "JSY", "PMSMA", "ICMR")
+- helpline number (e.g. "112", "14416")
+- named referral target (e.g. "health worker", "PHC", "emergency department", "112", "अस्पताल")
+- named guideline / scheme (e.g. "WHO", "CDC", "NHS", "ERSS")
 - emergency-trigger phrase (e.g. "तुरंत अस्पताल जाएं", "खून बहुत आ रहा है तो")
 - safety refusal (e.g. "मैं यह जानकारी नहीं दे सकता")
 
@@ -98,35 +99,18 @@ PERTURBED:
 """
 
 
-def _claude_generate(base_prose: str, perturbation_type: str) -> str:
-    import anthropic
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+def _generate(base_prose: str, perturbation_type: str) -> str:
+    from eval.panel_clients import call_panel_model
     instruction = PERTURBATION_INSTRUCTIONS[perturbation_type]
-    sys_prompt = (
-        "You are a Hindi maternal-health text editor. Apply the requested transformation to the "
-        "Hindi prose below. Output ONLY the transformed Hindi prose — no preamble, no quotation marks, "
-        "no metadata, no English explanation. Just the transformed text."
-    )
-    msg = client.messages.create(
-        model=GENERATOR_MODEL,
-        max_tokens=2048,
-        system=sys_prompt,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Transformation requested: {instruction}\n\nHindi prose to transform:\n{base_prose}",
-            }
-        ],
-    )
-    text_block = msg.content[0]
-    return getattr(text_block, "text", "").strip()
+    system = "You are a Hindi health text editor. Preserve clinical meaning. Output only the transformed prose, without metadata or a triage block."
+    return call_panel_model(GENERATOR_MODEL, system, f"Transformation: {instruction}\n\nOriginal prose:\n{base_prose}").response.strip()
 
 
 def _gemini_verify(original_prose: str, perturbed_prose: str) -> dict[str, Any]:
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+    client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY"))
     prompt = VERIFIER_PROMPT_TEMPLATE.format(original=original_prose, perturbed=perturbed_prose)
     resp = client.models.generate_content(
         model=VERIFIER_MODEL,
@@ -163,8 +147,12 @@ def main() -> int:
         print(f"Run scripts/build_base_responses.py first; {BASE_PATH} missing.", file=sys.stderr)
         return 1
 
+    from eval.benchmark import require_current_benchmark
     bases = [json.loads(line) for line in BASE_PATH.open(encoding="utf-8")]
 
+    for base in bases:
+        require_current_benchmark(base, label="perturbation base")
+    failures = 0
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with OUT_PATH.open("w", encoding="utf-8") as fh:
         for base in bases:
@@ -174,11 +162,13 @@ def main() -> int:
                 attempt = 0
                 while attempt <= MAX_RETRIES:
                     try:
-                        perturbed_prose = _claude_generate(base_prose, ptype)
+                        perturbed_prose = _generate(base_prose, ptype)
                     except Exception as exc:
                         print(f"  generation error {base['prompt_id']} {ptype}: {exc}", file=sys.stderr)
                         perturbed_prose = ""
                     if not perturbed_prose:
+                        if attempt == MAX_RETRIES:
+                            failures += 1
                         attempt += 1
                         time.sleep(2)
                         continue
@@ -187,10 +177,11 @@ def main() -> int:
                     except Exception as exc:
                         print(f"  verify error {base['prompt_id']} {ptype}: {exc}", file=sys.stderr)
                         diff = {"facts_dropped": [], "facts_added": [], "facts_preserved": [], "verify_error": str(exc)}
-                    verifier_pass = not diff.get("facts_dropped") and not diff.get("facts_added") and "verify_error" not in diff
+                    verifier_pass = not diff.get("facts_dropped") and not diff.get("facts_added") and "verify_error" not in diff and "parse_error" not in diff
                     if verifier_pass or attempt == MAX_RETRIES:
                         perturbed_full = (triage_block + perturbed_prose) if triage_block else perturbed_prose
                         record = {
+                            "benchmark_fingerprint": base["benchmark_fingerprint"],
                             "prompt_id": base["prompt_id"],
                             "perturbation_type": ptype,
                             "base_response": base["base_response"],
@@ -209,7 +200,7 @@ def main() -> int:
                         break
                     attempt += 1
                     time.sleep(1)
-    return 0
+    return int(failures > 0)
 
 
 if __name__ == "__main__":

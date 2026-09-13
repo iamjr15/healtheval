@@ -1,123 +1,68 @@
-# MaaSwasth evaluated model panel and 3-judge cross-family jury.
-# Validates against `data.schemas.ModelPanel`.
-# 4 candidate models share ONE system prompt (data/system_prompt_mnh.yaml):
-#   • sarvam-30b      (Sarvam — sovereign Indic primary)
-#   • sarvam-105b     (Sarvam — sovereign Indic flagship)
-#   • claude-sonnet-4-6  (Anthropic — frontier baseline)
-#   • gemini-2.5-pro  (Google — frontier multilingual)
-#
-# 3-judge cross-family jury (2 frontier-disjoint + 1 sovereign Indic):
-#   • claude-sonnet-4-6  (Anthropic)
-#   • gemini-2.5-pro     (Google)
-#   • sarvam-105b        (Sarvam — sovereign; HEALTH-PARIKSHA self-judging-
-#                          avoidance still applies when it's the panel target)
-
 panel:
-  - model_id: sarvam-30b
-    provider: SARVAM
-    base_url: https://api.sarvam.ai/v1
-    api_key_env: SARVAM_API_KEY
-    rate_limit_rpm: 60
-    dispatch_type: API
-    application_type: API
-    cerai_provider: LOCAL
-    notes: >
-      India's sovereign foundation model (open-sourced March 2026 per
-      sarvam.ai/blogs/sarvam-30b-105b). Chat-completions compatible endpoint;
-      configured as a CeRAI LOCAL provider.
-
-  - model_id: sarvam-105b
-    provider: SARVAM
-    base_url: https://api.sarvam.ai/v1
-    api_key_env: SARVAM_API_KEY
-    rate_limit_rpm: 30
-    dispatch_type: API
-    application_type: API
-    cerai_provider: LOCAL
-    notes: >
-      Sovereign Indic flagship, 128K context. When this model is the eval
-      target, the sarvam-105b judge is dropped from the jury (HEALTH-PARIKSHA
-      self-judging avoidance, the judge-panel contract).
-
-  - model_id: claude-sonnet-4-6
-    provider: ANTHROPIC
-    base_url: https://api.anthropic.com/v1
-    api_key_env: ANTHROPIC_API_KEY
-    rate_limit_rpm: 50
-    dispatch_type: API
-    application_type: API
-    cerai_provider: LOCAL
-    notes: >
-      Frontier baseline; reached via Anthropic OAI-compat URL or LiteLLM
-      proxy as backup (the shared system-prompt contract). Same model is on the judge panel — when
-      it's the eval target, the claude judge is dropped (the judge-panel contract).
-
-  - model_id: gemini-2.5-pro
-    provider: GOOGLE
-    base_url: https://generativelanguage.googleapis.com/v1beta
-    api_key_env: GOOGLE_API_KEY
-    rate_limit_rpm: 60
-    dispatch_type: API
-    application_type: API
-    cerai_provider: GEMINI
-    notes: >
-      Frontier with strong multilingual; closes the 4-way comparison set.
-      Same model is on the judge panel — when it's the eval target, the
-      gemini judge is dropped (the judge-panel contract).
-# 3-judge cross-family jury (2 frontier-disjoint + 1 sovereign Indic)
-# Per the judge-panel contract. Krippendorff α via the `krippendorff` package.
-# The jury spans Anthropic + Google + sovereign Indic, with self_judging_avoidance
-# dropping any judge whose model_id matches the panel target. When the panel
-# target is claude-sonnet-4-6 OR gemini-2.5-pro the jury falls to 2 judges
-# for that prompt; when the target is sarvam-105b the jury falls to 2
-# (claude + gemini); only sarvam-30b receives all 3 judges. Krippendorff α
-# is reported with explicit per-prompt n_judges per the judge-panel contract.
+- model_id: sarvam-105b-conversations
+  provider: SARVAM
+  base_url: https://api.sarvam.ai/v1
+  api_key_env: SARVAM_API_KEY
+  rate_limit_rpm: 60
+  dispatch_type: API
+  application_type: API
+  cerai_provider: LOCAL
+  notes: Current Sarvam conversational variant for Indic dialogue; API ID matches the reported model.
+- model_id: sarvam-105b
+  provider: SARVAM
+  base_url: https://api.sarvam.ai/v1
+  api_key_env: SARVAM_API_KEY
+  rate_limit_rpm: 30
+  dispatch_type: API
+  application_type: API
+  cerai_provider: LOCAL
+  notes: Separately named reasoning comparator; API ID matches the reported model.
+- model_id: claude-sonnet-4-6
+  provider: ANTHROPIC
+  base_url: https://api.anthropic.com/v1
+  api_key_env: ANTHROPIC_API_KEY
+  rate_limit_rpm: 50
+  dispatch_type: API
+  application_type: API
+  cerai_provider: LOCAL
+  notes: Independent model-family comparator; requires a funded and valid provider API key.
+- model_id: gemini-2.5-pro
+  provider: GOOGLE
+  base_url: https://generativelanguage.googleapis.com/v1beta
+  api_key_env: GOOGLE_API_KEY
+  rate_limit_rpm: 60
+  dispatch_type: API
+  application_type: API
+  cerai_provider: GEMINI
+  notes: Independent model-family comparator; requires a funded and valid provider API key.
 judge_panel:
-  - model_id: claude-sonnet-4-6
-    provider: ANTHROPIC
-    family: anthropic
-    role: judge
-    self_judging_avoidance: true
-
-  - model_id: gemini-2.5-pro
-    provider: GOOGLE
-    family: google
-    role: judge
-    self_judging_avoidance: true
-
-  - model_id: sarvam-105b
-    provider: SARVAM
-    family: sarvam
-    role: judge
-    self_judging_avoidance: true
-
+- model_id: claude-sonnet-4-6
+  provider: ANTHROPIC
+  family: anthropic
+  role: judge
+  self_judging_avoidance: true
+- model_id: gemini-2.5-pro
+  provider: GOOGLE
+  family: google
+  role: judge
+  self_judging_avoidance: true
+- model_id: sarvam-105b
+  provider: SARVAM
+  family: sarvam
+  role: judge
+  self_judging_avoidance: true
 datasheet:
-  description: >
-    4 candidate panel models + 3-judge cross-family jury, configured per
-    HEALTH-PARIKSHA-style shared evaluation framework
-    (Gumma et al. arXiv:2410.13671). Cross-family coverage of the jury is
-    preserved — Anthropic + Google + Sarvam — and self_judging_avoidance
-    still drops any judge whose model_id matches the panel target.
-  intended_use: >
-    Consumed by promptfooconfig.yaml (Promptfoo HTTP providers),
-    eval/judges.py (3-judge jury), eval/osce.py (4-way OSCE comparison),
-    functions/api/chat.js (demo UI dropdown), and the CeRAI AIEvaluationTool
-    LOCAL/GEMINI dispatch.
-  limitations: >
-    (1) Sarvam pricing/rate limits are approximate per April 2026 sarvam.ai
-    public pricing — verify at integration time. (2) Self-judging avoidance is enforced in eval/judges.py — judge
-    drop-on-match logic is centralised there, NOT applied at YAML load.
-    (3) The HEALTH-PARIKSHA shared-framework contract is a uniform shared
-    system prompt across all panel models. Per-prompt jury size varies
-    between 2 and 3 depending on panel target × self_judging_avoidance;
-    report explicit n_judges with every Krippendorff α and bias_report row.
-    (4) Provider enum values are intentionally broader than the current
-    panel so comparator integrations can share one schema.
+  description: 'Four current chat candidates: Sarvam 105B Conversations, Sarvam 105B, Claude Sonnet 4.6
+    and Gemini 2.5 Pro. Three judge families; related Sarvam variants never judge one another.'
+  intended_use: Same broad-health system prompt across all candidate models; every result records the
+    actual requested model ID.
+  limitations: Source-grounded synthetic draft benchmark, not clinical validation. API availability and
+    funding are checked before live evaluation. Sarvam model availability verified on 2026-09-13.
   version: 2
   sources:
-    - name: "HEALTH-PARIKSHA — Gumma et al. 2024"
-      url: "https://arxiv.org/abs/2410.13671"
-      paragraph_id: "shared evaluation framework (§3)"
-    - name: "Verga et al. — Replacing Judges with Juries (2024)"
-      url: "https://arxiv.org/abs/2404.18796"
-      paragraph_id: "multi-judge jury motivation"
+  - name: Sarvam current chat API models
+    url: https://docs.sarvam.ai/api-reference/chat/chat-completions
+    paragraph_id: model and reasoning_effort
+  - name: Sarvam changelog
+    url: https://docs.sarvam.ai/changelog
+    paragraph_id: 2026 model retirement notices
