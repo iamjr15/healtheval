@@ -38,7 +38,10 @@ trace file contains additional calls from retries and the earlier Gemini run.
    ```
 
 3. Use snapshots and the application controls to reach each state in the table.
-   Wait for the case, table and chart to finish rendering. The case-detail and
+   Wait for the case, table and chart to finish rendering. A heading appearing
+   does not prove that Streamlit has completed the rest of the page. For Overview,
+   wait until both summary panels, Evidence Inventory and the final Important
+   Limits section exist before capturing; then bring the tab to the foreground. The case-detail and
    review images use ordinary scrolling and expanded sections. Use a taller
    viewport when needed to include a complete section without cutting off its
    labels or decision values.

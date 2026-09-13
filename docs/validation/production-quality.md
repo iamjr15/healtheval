@@ -71,6 +71,13 @@ passed all four jobs. The README was also checked on GitHub: all six screenshots
 and both badges loaded, navigation anchors resolved, and the methodology diagram
 and expanded screenshot sections rendered.
 
+The [dependency-update CI run](https://github.com/iamjr15/healtheval/actions/runs/34762667740)
+also passed all four jobs. GitHub's refreshed alert inventory cleared the Python
+alerts, including all critical findings; the separate pip-audit Click finding
+remains documented. All nine container pages were revisited successfully after
+the dependency updates. The overview screenshot was refreshed after waiting for
+both metric panels and the complete evidence inventory to render.
+
 ## Limits
 
 No hosting deployment or external review-persistence backend was provisioned.
