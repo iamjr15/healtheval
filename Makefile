@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup run test test-python test-worker lint repository-check check container demo
+.PHONY: help setup run test test-python test-worker lint repository-check check container demo audit
 
 help:
 	@echo "setup             Install locked Python and Node dependencies"
@@ -11,6 +11,7 @@ help:
 	@echo "repository-check  Check docs, generated assets and published evidence"
 	@echo "container         Build and start the saved-evidence container"
 	@echo "demo              Start the optional Cloudflare browser demo"
+	@echo "audit             Query dependency advisories (online; findings fail)"
 
 setup:
 	uv sync --locked --extra dev
@@ -40,3 +41,6 @@ container:
 
 demo:
 	npm run demo
+
+audit:
+	uv run --locked python scripts/audit_dependencies.py

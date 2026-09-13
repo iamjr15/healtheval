@@ -269,6 +269,8 @@ directories and are never presented as measured evidence.
 GitHub Actions runs Python checks on **3.11 and 3.12**, Worker tests, a Wrangler
 build, and a non-root container health/evidence check. Third-party actions are
 pinned to commit SHAs. Dependency updates are proposed weekly by Dependabot.
+`make audit` reports current dependency advisories; remaining upstream findings
+and their scope are documented in [SECURITY.md](SECURITY.md).
 
 See [development](docs/guides/development.md), [contributing](CONTRIBUTING.md) and
 [security reporting](SECURITY.md). Public hosting still requires authentication,

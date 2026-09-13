@@ -84,6 +84,10 @@ never overwrites benchmark inputs while checking them.
 Update Python constraints in `pyproject.toml`, run `uv lock`, then sync and test.
 For Node, update `package.json` with the intended package version, regenerate the
 lockfile and verify with `npm ci`. Commit the manifest and lockfile together.
+Use `make audit` for online Python/npm advisory checks. Known unresolved findings
+are documented in [SECURITY.md](../../SECURITY.md) and retain a failing audit exit
+status; the offline quality suite is separate.
+
 Dependabot opens weekly Python, npm, Docker and GitHub Actions update proposals;
 review changes and CI results before merging. It does not automatically deploy.
 

@@ -53,11 +53,29 @@ container on a non-default port, including private-file markers excluded during
 the image build. See the [Quality workflow](https://github.com/iamjr15/healtheval/actions/workflows/quality.yml)
 for the status of the exact published revision.
 
+## Python dependency follow-up
+
+GitHub's first scan of the published workflow surfaced 100 Python alerts against
+the existing lockfile, including four critical findings. Targeted compatible
+updates and removal of unused NLTK address that original inventory. A fresh
+`pip-audit` of 162 installed packages reports one residual Click advisory blocked
+by the current evaluation-framework constraints; see [the dependency record](../../SECURITY.md#python-dependencies).
+
+After these updates, all 168 Python tests and five Worker tests passed again.
+The container rebuilt and reached healthy, and the live Promptfoo → Sarvam →
+DeepEval/Gemini case passed again with no failed assertions or evaluation errors.
+The new `make audit` command exposes current findings rather than suppressing them.
+
+The first published [CI run](https://github.com/iamjr15/healtheval/actions/runs/34762178871)
+passed all four jobs. The README was also checked on GitHub: all six screenshots
+and both badges loaded, navigation anchors resolved, and the methodology diagram
+and expanded screenshot sections rendered.
+
 ## Limits
 
 No hosting deployment or external review-persistence backend was provisioned.
 Provider billing limits, authenticated public access and durable multi-user state
-remain operator responsibilities. Five npm package advisories remain in optional
-tooling. Clinical and bilingual validation and the funded full Claude jury remain
+remain operator responsibilities. One Click advisory and five npm package advisories remain, with scope and
+upstream constraints documented in SECURITY.md. Clinical and bilingual validation and the funded full Claude jury remain
 outstanding as described in the earlier end-to-end report. These delivery checks
 do not change the interpretation of the 90-response benchmark.
