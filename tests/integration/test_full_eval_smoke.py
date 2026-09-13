@@ -60,7 +60,7 @@ def _try_import(name: str):
     try:
         return importlib.import_module(name)
     except ModuleNotFoundError as exc:
-        pytest.skip(f"{name} not importable: {exc}")
+        pytest.fail(f"{name} not importable: {exc}")
 
 
 @pytest.fixture(scope="module")
@@ -367,7 +367,7 @@ def test_reference_set_eval_returns_per_evaluator_report(refset_mod, repo_root: 
     """eval.reference_set_eval.evaluate_all on data/reference_set.yaml + mocked evaluators."""
     refset_path = repo_root / "data" / "reference_set.yaml"
     if not refset_path.exists():
-        pytest.skip("data/reference_set.yaml not on disk")
+        pytest.fail("data/reference_set.yaml not on disk")
 
     # eval.reference_set_eval.load_reference_set() reads from its module-
     # level REFERENCE_SET_PATH (the canonical data/reference_set.yaml on

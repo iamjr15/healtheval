@@ -41,6 +41,6 @@ The GitHub repository is [iamjr15/healtheval](https://github.com/iamjr15/healthe
 
 Local validation used a workbench on port 8502 and a browser response demo on port 8788. Those local preview addresses are not public deployments.
 
-[Workbench screenshot](qa/healtheval-overview.png).
+[Workbench screenshot](assets/overview.png).
 
 Detailed counts: `results/live_smoke/e2e_summary.json`. Current evidence: `results/methodology_panel_refset_eval.json` and `results/tool_meta_evaluation.json`.

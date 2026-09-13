@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible application or evaluation problem.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Use synthetic examples. Keep API keys, patient data and private reviews out of this report. Use SECURITY.md for vulnerabilities."
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: What were you trying to do, and what happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the page or command and a minimal synthetic input.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and evidence
+      description: Commit, Python/Node version or image, operating system, model/jury and case ID where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Include only relevant output with credentials and personal information removed.

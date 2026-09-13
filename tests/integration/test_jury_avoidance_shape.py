@@ -23,13 +23,13 @@ def _schemas():
     try:
         return importlib.import_module("data.schemas")
     except ModuleNotFoundError as e:
-        pytest.skip(f"data.schemas not importable: {e}")
+        pytest.fail(f"data.schemas not importable: {e}")
 
 
 def _fixture(repo_root: Path) -> dict:
     p = repo_root / "tests" / "fixtures" / "sample_jury_scores.json"
     if not p.exists():
-        pytest.skip(f"eval-core fixture not present: {p.relative_to(repo_root)}")
+        pytest.fail(f"eval-core fixture not present: {p.relative_to(repo_root)}")
     return json.loads(p.read_text(encoding="utf-8"))
 
 

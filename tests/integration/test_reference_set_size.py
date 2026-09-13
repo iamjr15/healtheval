@@ -14,13 +14,13 @@ def _schemas():
     try:
         return importlib.import_module("data.schemas")
     except ModuleNotFoundError as e:
-        pytest.skip(f"data.schemas not importable: {e}")
+        pytest.fail(f"data.schemas not importable: {e}")
 
 
 def _ref_path(repo_root: Path) -> Path:
     p = repo_root / "data" / "reference_set.yaml"
     if not p.exists():
-        pytest.skip(f"reference_set.yaml not yet shipped: {p.relative_to(repo_root)}")
+        pytest.fail(f"reference_set.yaml not yet shipped: {p.relative_to(repo_root)}")
     return p
 
 

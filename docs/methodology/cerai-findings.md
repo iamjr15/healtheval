@@ -1,7 +1,10 @@
 # CeRAI Findings Log
 
 This is the archived review log for the CeRAI evaluation tool analysis. It is
-kept as comparative research evidence for HealthEval.
+kept as historical development notes. The reviewed CeRAI version and a reproducible
+external audit are not recorded here; these observations should not be read as
+claims about the current CeRAI release. Current HealthEval comparison measurements
+remain unavailable.
 
 ## Findings
 
@@ -54,7 +57,9 @@ kept as comparative research evidence for HealthEval.
 
 13. **Evaluator performance needed a reference-set view.** A credible safety
     evaluator should report sensitivity and specificity against a health-labelled
-    reference set, not only aggregate metric scores.
+    reference set, not only aggregate metric scores. Measuring unsafe-answer
+    detection specifically requires independently labeled answer outcomes; the
+    current HealthEval safety-probe routing rates are not that measurement.
 
 14. **Case-level auditability was weak.** Reviewers should be able to inspect
     the prompt, expected answer, model answer, evaluator verdict, rubric, judge

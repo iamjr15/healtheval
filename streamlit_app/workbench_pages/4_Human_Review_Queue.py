@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover — falls back to a friendly error.
 
 from eval.reference_risk import reference_risk_tier
 from eval.judges import judge_score_is_usable
-from streamlit_app.review_routing import decision_review_reasons
+from streamlit_app.review_routing import comparison_review_flag, decision_review_reasons
 from streamlit_app.components.download_link import render_download_link
 from streamlit_app.components.hitl_form import render_hitl_form
 from streamlit_app.config import (
@@ -97,12 +97,7 @@ def _near_threshold(mean: float | None) -> bool:
 
 def _cerai_decision_from_scores(scores: Mapping[str, Any] | None) -> dict[str, Any]:
     score_dict = dict(scores or {})
-    mean_score = score_dict.get("mean")
-    try:
-        numeric_score = float(mean_score)
-        flagged = numeric_score < CERAI_DB_SCORE_CUTOFF if math.isfinite(numeric_score) else None
-    except (TypeError, ValueError):
-        flagged = None
+    flagged = comparison_review_flag(score_dict.get("mean"), CERAI_DB_SCORE_CUTOFF)
     return {
         "flagged": flagged,
         "db_scores": score_dict,
@@ -293,17 +288,17 @@ with st.sidebar:
     show_dismissed = st.toggle("Show dismissed", value=False)
 
     st.divider()
-    st.subheader("Save to Repo (Optional)")
+    st.subheader("Persistent storage (optional)")
     st.caption(
         "By default, reviews stay in this browser session. Enter the admin "
-        "token only if you want submitted reviews appended to the repo's "
-        "`results/hitl_reviews.jsonl` through the Cloudflare endpoint."
+        "token only when an authenticated review endpoint has been configured. "
+        "The endpoint operator manages storage and retention."
     )
     secret_token = _hitl_admin_token()
 
     if not secret_token:
         st.caption(
-            "The admin token is not configured on this deployment, so repo "
+            "The admin token is not configured on this deployment, so persistent "
             "saving is disabled."
         )
     else:
@@ -439,7 +434,7 @@ repo_reviews = load_hitl_reviews_repo()
 st.caption(
     f"{len(session_reviews)} reviews this session  ·  "
     f"{len(repo_reviews)} additional reviews already in "
-    f"`results/hitl_reviews.jsonl`."
+    f"`var/hitl_reviews.jsonl`."
 )
 
 if session_reviews:

@@ -228,8 +228,7 @@ def test_calibration_retrieval_emits_anchor_ids() -> None:
 def test_trace_row_duration_sec_is_real_wall_clock_time() -> None:
     """Regression: ``_emit_trace_row`` previously hard-coded duration_sec=0.0.
 
-    Reported by page-builder-C / page-builder-B during the v3 STRETCH
-    run.  Now ``judge_panel`` wraps the ``_safe_call_judge`` invocation
+    ``judge_panel`` wraps the ``_safe_call_judge`` invocation
     with ``time.perf_counter()`` and threads the elapsed value through
     ``_emit_trace_row`` so the trace records real latency.
     """

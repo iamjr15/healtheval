@@ -18,13 +18,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-# Surviving-jury identities when the panel response is from
-# Sarvam-105b (HEALTH-PARIKSHA self-judging avoidance dropping the
-# Sarvam judge): exactly Claude + Gemini. Pinned per eval-core's name-
-# check canary guidance so any future jury reshuffle that lands back
-# on count=2 with a different pair surfaces here. When `DEFAULT_JURY`
-# in `eval/judges.py` is reshuffled, eval-core DMs foundation-eng
-# with the new identities and we update this set in lockstep.
+# Pin surviving judge identities as well as the count to catch family-exclusion regressions.
 EXPECTED_SURVIVING_JURY_V1_5_4 = {"claude-sonnet-4-6", "gemini-2.5-pro"}
 
 
@@ -32,13 +26,13 @@ def _schemas():
     try:
         return importlib.import_module("data.schemas")
     except ModuleNotFoundError as e:
-        pytest.skip(f"data.schemas not importable: {e}")
+        pytest.fail(f"data.schemas not importable: {e}")
 
 
 def _fixture_path(repo_root: Path) -> Path:
     p = repo_root / "tests" / "fixtures" / "sample_findings.json"
     if not p.exists():
-        pytest.skip(f"eval-core fixture not present: {p.relative_to(repo_root)}")
+        pytest.fail(f"eval-core fixture not present: {p.relative_to(repo_root)}")
     return p
 
 

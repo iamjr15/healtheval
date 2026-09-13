@@ -31,6 +31,7 @@ from .schemas import (
     Constitution,
     HITLReview,
     JudgeTraceRow,
+    JudgeScoreRow,
     MethodologyArtifact,
     ReferenceSet,
     RubricPack,
@@ -274,7 +275,7 @@ def methodology_for_model(
 
 
 def load_tool_meta() -> ToolMetaArtifact:
-    """Alias for :func:`load_tool_meta_evaluation` per page-builder-A."""
+    """Alias for :func:`load_tool_meta_evaluation`."""
     return load_tool_meta_evaluation()
 
 

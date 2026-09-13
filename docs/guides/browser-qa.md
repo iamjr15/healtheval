@@ -12,7 +12,7 @@ optional and is not part of installation, tests or deployment.
 - Use the local workbench at `http://localhost:8501`, or the port supplied by the
   operator. If needed, start it with
   `uv run streamlit run streamlit_app/app.py`.
-- Store the report, screenshots and diagnostic logs under `tasks/dogfood-output/`.
+- Store the report, screenshots and diagnostic logs under `var/qa/`.
 - Use `agent-browser --auto-connect` for every browser command. Do not install or
   launch a separate browser. Take a fresh snapshot after navigation or DOM changes.
 - Use saved evidence by default. Live calls need configured, funded providers and
@@ -32,7 +32,7 @@ optional and is not part of installation, tests or deployment.
    distinction between synthetic fixtures and real provider outputs.
 6. Run appropriate tests, revisit affected pages, and record what passed and any
    remaining limits. Do not claim checks that were not performed.
-7. Write `tasks/dogfood-output/report.md` with findings, fixes, changed files,
+7. Write `var/qa/report.md` with findings, fixes, changed files,
    validation and remaining work.
 
 ## Boundaries

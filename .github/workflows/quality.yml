@@ -1,0 +1,94 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    env:
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync pytest -q
+      - run: uv run --no-sync python scripts/check_repository.py
+
+  worker:
+    name: Worker tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      PROMPTFOO_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx --no-install promptfoo --version
+      - run: npm run test:worker
+      - run: npm run build:worker
+
+  container:
+    name: Container health and evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker compose config --quiet
+      - name: Verify build-context privacy and runtime
+        run: |
+          mkdir -p var results/runs results/panel_refset_eval
+          echo PRIVATE_BUILD_SENTINEL > .env.production
+          echo PRIVATE_BUILD_SENTINEL > var/private-sentinel.txt
+          echo PRIVATE_BUILD_SENTINEL > results/runs/private-sentinel.txt
+          echo PRIVATE_BUILD_SENTINEL > results/panel_refset_eval/private-sentinel.json
+          docker build -t healtheval:ci .
+          docker run -d --name healtheval-ci --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges --tmpfs /tmp --tmpfs /app/var:uid=10001,gid=10001 \
+            -e PORT=8099 -p 127.0.0.1:8099:8099 healtheval:ci
+          for attempt in $(seq 1 45); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' healtheval-ci)" = healthy ]; then
+              break
+            fi
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' healtheval-ci)" = healthy
+          curl --fail http://127.0.0.1:8099/_stcore/health
+          docker exec healtheval-ci python -c 'import os; from pathlib import Path; from streamlit_app.evidence_validator import validate_evidence; assert os.getuid() == 10001; assert validate_evidence() is not None; assert not list(Path("/app").rglob("private-sentinel.*")); assert not list(Path("/app").glob(".env*")); print("Non-root runtime, private-file exclusion and current evidence validated")'
+      - name: Container logs and cleanup
+        if: always()
+        run: |
+          docker logs healtheval-ci || true
+          docker rm -f healtheval-ci || true

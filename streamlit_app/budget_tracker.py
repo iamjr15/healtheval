@@ -85,10 +85,10 @@ def append_dispatch(
 ) -> None:
     """Append one dispatch row.  Uses ``fcntl.flock`` for atomic append.
 
-    Streamlit's filesystem is process-local on Cloud Run, so the lock
-    only protects against concurrent reqs **within one pod**.  That's
-    fine for a 1-instance / 5-max-instance config; cross-pod accuracy
-    is documented as a known limitation in the README.
+    The lock protects appends on this filesystem only. Checking a budget and
+    dispatching a call are not one transaction, and replicas do not share a
+    ledger unless the operator supplies shared storage. Use provider-side
+    billing controls for an enforceable spending limit.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     row: dict[str, Any] = {

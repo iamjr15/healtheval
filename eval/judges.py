@@ -659,13 +659,6 @@ def _select_jury(
     list (today-contract); downstream Krippendorff α handles the missing
     column via ``np.nan``.
 
-    Future-sentinel migration trigger: when we want to surface dropped
-    judges in the audit summary audit trail, swap to emitting a sentinel row with
-    ``score=NaN``, ``rationale="dropped under self-judging avoidance"``,
-    ``self_judging_dropped=True``.  When that lands, DM ``foundation-eng``
-    so they flip the integration assertions to the dual-view shape (live
-    cells filtered via ``not self_judging_dropped``, plus an exact
-    sentinel-row count assertion).
     """
     base = tuple(jury) if jury is not None else DEFAULT_JURY
     kept = tuple(j for j in base if not same_model_family(j.model_id, panel_model_id))

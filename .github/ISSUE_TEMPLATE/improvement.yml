@@ -1,0 +1,17 @@
+name: Improvement
+description: Propose a focused product, methodology or dataset improvement.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or evaluation need
+      description: Who needs this, and what is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the behavior and how its quality could be assessed. Include primary sources for changes to health expectations.
+    validations:
+      required: true

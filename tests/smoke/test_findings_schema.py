@@ -1,9 +1,4 @@
-"""Smoke (d): a stub findings.json validates against FindingsSchema.
-
-the reproducibility gate non-negotiable: `findings.json validates against published
-Pydantic schema in repo`. FindingsSchema lives in `data/schemas.py`
-(Teammate B). XFAILs cleanly when the schema isn't yet exposed.
-"""
+"""Required FindingsSchema accepts a minimal, explicitly synthetic test artifact."""
 from __future__ import annotations
 
 import importlib
@@ -50,38 +45,27 @@ def _build_minimal_findings():
             }
         ],
         "datasheet": {
-            "description": "Foundation smoke gate stub for FindingsSchema round-trip.",
+            "description": "Synthetic smoke-test fixture for FindingsSchema round-trip.",
             "purpose": "Validate FindingsSchema(**payload) succeeds offline in <60s.",
             "limitations": "Stub only; no real model evaluation behind these numbers.",
             "version": 1,
             "name": "findings_smoke_stub",
             "license": "Apache-2.0",
             "created_at": "2026-05-10T00:00:00Z",
-            "maintainer": "foundation-eng",
+            "maintainer": "test-maintainer",
         },
     }
 
 
-@pytest.mark.xfail(
-    _get_attr("FindingsSchema") is None,
-    reason="blocked on data-spec teammate (data.schemas.FindingsSchema not yet exposed)",
-    strict=False,
-)
 def test_findings_stub_validates():
     FindingsSchema = _get_attr("FindingsSchema")
     Datasheet = _get_attr("Datasheet")
     if FindingsSchema is None or Datasheet is None:
-        pytest.xfail("FindingsSchema or Datasheet not exposed yet")
+        pytest.fail("FindingsSchema or Datasheet must be exposed")
 
     payload = _build_minimal_findings()
 
-    # If data-spec's Datasheet has stricter required fields than our stub,
-    # we surface that as an XFAIL rather than a hard fail — the contract
-    # is still in flux and foundation-eng's job is to gate, not to dictate.
-    try:
-        obj = FindingsSchema(**payload)
-    except Exception as e:  # noqa: BLE001 — Pydantic ValidationError + others
-        pytest.xfail(f"FindingsSchema/Datasheet contract still in flux: {e!s}")
+    obj = FindingsSchema(**payload)
 
     dumped = obj.model_dump()
     assert dumped["plan_version"] == "v1.5.3"

@@ -33,13 +33,9 @@ class Datasheet(_Base):
     this struct is the machine-readable handle so the harness can dump a
     provenance footer alongside results.
 
-    Field reconciliation (May 10 2026):
-      * `intended_use` accepts `purpose` as an alias (foundation-eng smoke
-        stub used `purpose`).
-      * `name`, `maintainer`, `license`, `created_at` are optional package-
-        metadata fields kept around for foundation-eng's smoke stub. Real
-        provenance lives in `description` + `intended_use` + `limitations`
-        + `sources` per Gebru CACM 2021 §3.
+    ``purpose`` remains an alias for ``intended_use`` when reading older
+    artifacts. Optional package metadata supplements the explicit description,
+    intended use, limitations and sources.
     """
     description: str = Field(..., description="What the dataset contains.")
     intended_use: str = Field(

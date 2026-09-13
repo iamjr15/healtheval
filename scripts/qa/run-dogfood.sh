@@ -1,11 +1,11 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Optional local QA runner. The prompt performs local review; hosting is separate.
 set -eu
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-PROJECT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-LOG_DIR="${HEALTHEVAL_QA_LOG_DIR:-$PROJECT_DIR/tasks/dogfood-output/logs}"
-PROMPT_FILE="$SCRIPT_DIR/dogfood-prompt.md"
+PROJECT_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+LOG_DIR="${HEALTHEVAL_QA_LOG_DIR:-$PROJECT_DIR/var/qa/logs}"
+PROMPT_FILE="$PROJECT_DIR/docs/guides/browser-qa.md"
 CLAUDE_BIN="${HEALTHEVAL_CLAUDE_BIN:-claude}"
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/run-$(date +%Y%m%d-%H%M%S).log"

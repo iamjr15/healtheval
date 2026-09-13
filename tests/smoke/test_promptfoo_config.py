@@ -1,12 +1,4 @@
-"""Smoke (e): `promptfooconfig.yaml` parses as YAML and lists all required
-candidate models (the candidate-model panel / saved-output Promptfoo check).
-
-Owned by Teammate D (eval-integ). Also opportunistically checks that the
-`promptfoo` npm CLI is on PATH (the dependency is npm, not Python). The
-Docker workflow provides Promptfoo through the `promptfoo-saved` and
-`promptfoo-live` services. Both checks XFAIL/SKIP cleanly when
-unavailable so foundation-eng's gate stays green.
-"""
+"""Required model IDs and optional local Promptfoo executable health."""
 from __future__ import annotations
 
 import shutil
@@ -92,11 +84,6 @@ def _promptfoo_config_missing() -> bool:
     )
 
 
-@pytest.mark.xfail(
-    _promptfoo_config_missing(),
-    reason="promptfooconfig.yaml is not present",
-    strict=False,
-)
 def test_promptfoo_config_parses_and_lists_panel(repo_root):
     path = _config_path(repo_root)
     with path.open(encoding="utf-8") as fh:
@@ -113,8 +100,7 @@ def test_promptfoo_config_parses_and_lists_panel(repo_root):
 def test_promptfoo_cli_available_or_skipped():
     """Best-effort: if `promptfoo` is on PATH, `--version` must respond.
 
-    Skips when the CLI is absent because Docker provides it inside the
-    Promptfoo profile services."""
+    Skips in Python-only environments; the Worker CI job verifies the installed CLI."""
     binary = shutil.which("promptfoo") or str(Path(__file__).resolve().parents[2] / "node_modules/.bin/promptfoo")
     if not Path(binary).exists():
         pytest.skip("promptfoo CLI not installed in this environment — see README.md")

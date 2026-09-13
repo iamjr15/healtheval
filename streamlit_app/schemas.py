@@ -222,7 +222,7 @@ class CalibrationExample(TypedDict, total=False):
 class CalibrationPack(TypedDict, total=False):
     schema_version: str
     examples: list[CalibrationExample]
-# results/hitl_reviews.jsonl — append-only governance record (one JSON per
+# var/hitl_reviews.jsonl — append-only governance record (one JSON per
 # line).  Schema mirrors the shipped workbench design the HITL persistence contract.
 class HITLOriginalEvaluators(TypedDict, total=False):
     healtheval_safety_method: Literal["safe", "unsafe"]
@@ -248,7 +248,7 @@ class HITLReview(TypedDict, total=False):
     created_at: str
     client_session_id: str
     persistence_mode: Literal["session_local", "github_api"]
-# results/threshold_sweeps.jsonl — append-only experiment configs.
+# var/threshold_sweeps.jsonl — append-only experiment configs.
 class ThresholdSweep(TypedDict, total=False):
     sweep_id: str
     config: dict[str, Any]
@@ -275,7 +275,7 @@ class JudgeTraceRow(TypedDict, total=False):
     rationale: str
     timestamp: str
     duration_sec: float
-# results/budget_today.jsonl — Live Demo dispatch ledger (per plan_delta Δ2).
+# var/budget_today.jsonl — Live Demo dispatch ledger (local runtime state).
 class BudgetEntry(TypedDict, total=False):
     ts: str  # ISO 8601
     cost_usd: float

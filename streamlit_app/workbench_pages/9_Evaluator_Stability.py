@@ -261,7 +261,7 @@ if audit is not None:
 st.divider()
 st.subheader("Where else to look")
 st.markdown(
-    "- **Full audit writeup with citations**: `docs/perturbation_audit.md`\n"
+    "- **Audit plan and measurement status**: `docs/methodology/perturbation-audit.md`\n"
     "- **Raw scores**: `results/perturbation_scores_cerai.json`, `results/perturbation_scores_healtheval.json`\n"
     "- **Audit aggregate (this page's source data)**: `results/perturbation_audit.json`\n"
     "- **Perturbation data + factual diffs**: `data/perturbations/perturbed_responses.jsonl`\n"

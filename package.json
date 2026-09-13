@@ -8,12 +8,19 @@
     "node": ">=22.22.0"
   },
   "devDependencies": {
-    "promptfoo": "0.121.11",
+    "promptfoo": "0.121.20",
     "wrangler": "^4.0.0"
   },
   "scripts": {
     "test:worker": "node --test tests/worker/*.test.js",
     "demo": "wrangler pages dev demo",
-    "promptfoo": "promptfoo"
-  }
+    "promptfoo": "promptfoo",
+    "test": "npm run test:worker",
+    "build:worker": "wrangler pages functions build functions --outdir var/worker-build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iamjr15/healtheval.git"
+  },
+  "license": "Apache-2.0"
 }

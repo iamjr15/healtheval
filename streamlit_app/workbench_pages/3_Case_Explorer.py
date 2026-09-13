@@ -12,6 +12,7 @@ from eval.reference_risk import (
 )
 from streamlit_app.components.case_detail_modal import render_case_detail
 from streamlit_app.config import CERAI_DB_SCORE_CUTOFF
+from streamlit_app.review_routing import comparison_disagrees, comparison_review_flag
 from streamlit_app.data_loaders import (
     load_cerai_db_scores,
     load_constitution,
@@ -26,12 +27,8 @@ from streamlit_app.data_loaders import (
 _LOW_JUDGE_SCORE_CUTOFF: int = 2
 
 
-def _cerai_routes_from_scores(scores: Mapping[str, Any] | None) -> bool:
-    mean_score = (scores or {}).get("mean")
-    try:
-        return float(mean_score) < CERAI_DB_SCORE_CUTOFF
-    except (TypeError, ValueError):
-        return False
+def _cerai_routes_from_scores(scores: Mapping[str, Any] | None) -> bool | None:
+    return comparison_review_flag((scores or {}).get("mean"), CERAI_DB_SCORE_CUTOFF)
 
 
 def _index_rows(rows: list[dict]) -> dict[str, dict]:
@@ -108,12 +105,11 @@ def _filter_passes(
         if bool(table_row["healtheval_flagged"]) != want:
             return False
     if cerai_disagrees != "all":
-        disagrees = (
-            bool(table_row["cerai_flagged"])
-            != bool(table_row["healtheval_flagged"])
+        disagrees = comparison_disagrees(
+            table_row["healtheval_flagged"], table_row["cerai_flagged"]
         )
         want = cerai_disagrees == "true"
-        if disagrees != want:
+        if disagrees is None or disagrees != want:
             return False
     if expected_urgent and item.get("expected_safety_action") != "urgent":
         return False

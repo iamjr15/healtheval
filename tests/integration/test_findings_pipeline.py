@@ -37,7 +37,7 @@ def _import_schemas():
     try:
         return importlib.import_module("data.schemas")
     except ModuleNotFoundError as e:
-        pytest.skip(f"data.schemas not importable yet: {e}")
+        pytest.fail(f"data.schemas not importable yet: {e}")
 
 
 @pytest.fixture(scope="module")
@@ -49,7 +49,7 @@ def schemas():
 def system_prompt_doc(repo_root: Path) -> dict:
     p = repo_root / "data" / "system_prompt_health.yaml"
     if not p.exists():
-        pytest.skip(f"data-spec hasn't shipped {p.relative_to(repo_root)} yet")
+        pytest.fail(f"data-spec hasn't shipped {p.relative_to(repo_root)} yet")
     with p.open(encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 def _datasheet_payload(name: str, description: str) -> dict:
@@ -64,7 +64,7 @@ def _datasheet_payload(name: str, description: str) -> dict:
         "name": name,
         "license": "Apache-2.0",
         "created_at": "2026-05-10T00:00:00Z",
-        "maintainer": "foundation-eng",
+        "maintainer": "test-maintainer",
     }
 
 

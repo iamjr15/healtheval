@@ -1,0 +1,7 @@
+# Opt in to funded provider calls using local .env (never baked into the image).
+# docker compose -f docker-compose.yml -f compose.live.yml up --build --wait
+services:
+  workbench:
+    env_file:
+      - path: .env
+        required: true

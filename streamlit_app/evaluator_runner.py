@@ -12,7 +12,7 @@ single-prompt granularity:
 4. Aggregate the jury into the single final HealthEval response-evaluation
    decision used by the saved n=30 x panel evidence.
 
-**Critical correctness (per the page-builder-B brief):**
+**Scoring contracts:**
 
 - **Jury is never hard-coded.**  The selected canonical methodology
   artefact carries a ``jury: list[str]`` field listing the judge ids

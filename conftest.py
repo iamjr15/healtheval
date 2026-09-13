@@ -1,6 +1,12 @@
 """Isolated full-pipeline fixtures: synthetic outputs never become shipped evidence."""
 import json
+from pathlib import Path
 import pytest
+
+
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
+    return Path(__file__).resolve().parent
 
 
 @pytest.fixture(scope="session")

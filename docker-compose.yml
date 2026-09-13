@@ -1,164 +1,26 @@
-# Reviewer workflow:
-#   docker compose up --build
-#
-# The default path validates .env, runs offline smoke tests, then starts the
-# Streamlit workbench at http://localhost:8501.
-
+# Saved-evidence workbench. Add compose.live.yml explicitly for provider access.
 services:
-  env-check:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-    command: python scripts/check_env.py .env
-
-  smoke:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-    working_dir: /workspace
-    environment:
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTEST_ADDOPTS: "-p no:cacheprovider"
-      UV_LINK_MODE: copy
-    volumes:
-      - .:/workspace
-      - uv_venv_py312:/workspace/.venv
-    command: >
-      bash -lc "
-        uv sync --frozen --extra dev &&
-        uv run pytest tests/smoke/ -v --maxfail=1
-      "
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
-
   workbench:
     build:
       context: .
       dockerfile: Dockerfile
-    working_dir: /workspace
-    environment:
-      PYTHONPATH: /workspace:/app
-      PYTHONDONTWRITEBYTECODE: "1"
-      UV_LINK_MODE: copy
     ports:
-      - "8501:8080"
-    volumes:
-      - .:/workspace
-    command: >
-      sh -c "
-        if [ -f /workspace/.env ]; then
-          set -a;
-          . /workspace/.env;
-          set +a;
-        fi;
-        exec streamlit run /workspace/streamlit_app/app.py --server.port=8080 --server.address=0.0.0.0 --server.enableXsrfProtection=true
-      "
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
-      smoke:
-        condition: service_completed_successfully
-
-  preflight:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-    profiles: ["test"]
-    working_dir: /workspace
+      - "127.0.0.1:${HEALTHEVAL_PORT:-8501}:8080"
     environment:
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTEST_ADDOPTS: "-p no:cacheprovider"
-      UV_LINK_MODE: copy
+      PORT: "8080"
+      HEALTHEVAL_STATE_DIR: /app/var
     volumes:
-      - .:/workspace
-      - uv_venv_py312:/workspace/.venv
-    command: >
-      bash -lc "
-        python scripts/check_env.py .env --require-keys &&
-        set -a &&
-        . .env &&
-        set +a &&
-        uv sync --frozen --extra dev &&
-        bash scripts/preflight_check.sh --with-keys --with-findings
-      "
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
-
-  promptfoo-saved:
-    build:
-      context: .
-      dockerfile: Dockerfile.promptfoo
-    profiles: ["test"]
-    working_dir: /workspace
-    environment:
-      PROMPTFOO_DISABLE_TELEMETRY: "1"
-      PROMPTFOO_PYTHON: /opt/healtheval-promptfoo-venv/bin/python
-      HEALTHEVAL_PROMPTFOO_LIMIT: "1"
-      PYTHONDONTWRITEBYTECODE: "1"
-    volumes:
-      - .:/workspace
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        if [ -f .env ]; then set -a && . .env && set +a; fi &&
-        status=0;
-        promptfoo eval -c promptfooconfig.saved.yaml || status=$$?;
-        if [ "$$status" -eq 100 ]; then
-          echo "Promptfoo completed with assertion failures; report written to results/promptfoo_saved.html.";
-          exit 0;
-        fi;
-        exit "$$status"
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
-
-  promptfoo-live:
-    build:
-      context: .
-      dockerfile: Dockerfile.promptfoo
-    profiles: ["live-eval"]
-    working_dir: /workspace
-    environment:
-      PROMPTFOO_DISABLE_TELEMETRY: "1"
-      PROMPTFOO_PYTHON: /opt/healtheval-promptfoo-venv/bin/python
-      PYTHONDONTWRITEBYTECODE: "1"
-    volumes:
-      - .:/workspace
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        python scripts/check_env.py .env --require-keys &&
-        set -a &&
-        . .env &&
-        set +a &&
-        promptfoo eval -c promptfooconfig.yaml
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
-
-  panel-eval:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-    profiles: ["live-eval"]
-    working_dir: /workspace
-    environment:
-      PYTHONDONTWRITEBYTECODE: "1"
-      UV_LINK_MODE: copy
-    volumes:
-      - .:/workspace
-      - uv_venv_py312:/workspace/.venv
-    command: >
-      bash -lc "
-        python scripts/check_env.py .env --require-keys &&
-        set -a &&
-        . .env &&
-        set +a &&
-        uv sync --frozen --extra dev &&
-        uv run python scripts/run_panel_refset_eval.py --force &&
-        uv run python scripts/repair_judge_failures.py --workers 5 &&
-        uv run python scripts/compute_panel_tool_meta.py
-      "
-    depends_on:
-      env-check:
-        condition: service_completed_successfully
+      - workbench_state:/app/var
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
 
 volumes:
-  uv_venv_py312:
+  workbench_state:

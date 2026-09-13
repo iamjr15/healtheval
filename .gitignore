@@ -1,13 +1,13 @@
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 .uv/
 .venv/
-.venv-*/                 # per-teammate scratch envs (e.g. .venv-data-spec/)
+.venv-*/
 .claude/
 node_modules/
 .next/
@@ -39,4 +39,12 @@ corpus/cache/
 .wrangler/
 
 # Local QA reports can contain interactive prompts and screenshots.
-tasks/dogfood-output/
+var/
+results/runs/
+
+.streamlit/secrets.toml
+.dev.vars.*
+.ruff_cache/
+.promptfoo/
+results/threshold_sweeps.jsonl
+dist/

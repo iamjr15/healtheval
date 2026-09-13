@@ -1,9 +1,4 @@
-"""Smoke (b): the shared health system prompt parses as YAML and exposes
-the required keys (the shared health system prompt / §6 / setup smoke gate).
-
-Owned by Teammate B (data-spec). XFAILs cleanly until that file is
-written so foundation-eng's gate stays green.
-"""
+"""The required shared Hindi health prompt exposes the expected response contract."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,11 +15,6 @@ def _system_prompt_path(repo_root: Path) -> Path:
     return repo_root / "data" / "system_prompt_health.yaml"
 
 
-@pytest.mark.xfail(
-    not (Path(__file__).resolve().parents[2] / "data" / "system_prompt_health.yaml").exists(),
-    reason="blocked on data-spec teammate (data/system_prompt_health.yaml not yet written)",
-    strict=False,
-)
 def test_system_prompt_yaml_parses_and_has_required_keys(repo_root):
     path = _system_prompt_path(repo_root)
     with path.open(encoding="utf-8") as fh:

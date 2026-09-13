@@ -183,7 +183,6 @@ def dispatch_via_cerai(
         panel isn't loadable).
     cerai_base_url
         CeRAI back-end base URL. Defaults to :envvar:`CERAI_BASE_URL`
-        (foundation-eng contract).
     chat_id_base
         Starting chat_id for CeRAI's per-prompt conversation memory.
 

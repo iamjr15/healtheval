@@ -12,9 +12,8 @@ def main():
     parser.add_argument('--with-findings', '--require-evidence', dest='require_evidence', action='store_true')
     args = parser.parse_args()
     checks = [[sys.executable, 'scripts/check_env.py', '.env'] + (['--require-keys'] if args.with_keys else []),
-              [sys.executable, '-m', 'pytest', 'tests', 'streamlit_app/tests', '-q']]
-    if (ROOT / 'node_modules').exists():
-        checks.append(['npm', 'run', 'test:worker'])
+              [sys.executable, '-m', 'pytest', '-q']]
+    checks.append(['npm', 'run', 'test:worker'])
     for command in checks:
         result = subprocess.run(command, cwd=ROOT)
         if result.returncode:

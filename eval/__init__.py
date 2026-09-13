@@ -1,6 +1,6 @@
 """HealthEval eval-core package.
 
-Houses the four methodology layers owned by teammate ``eval-core``:
+Core evaluation modules:
 
 * :mod:`eval.judges`  — 3-judge cross-family jury with HEALTH-PARIKSHA
   self-judging avoidance (the judge-panel contract).
@@ -12,7 +12,7 @@ Houses the four methodology layers owned by teammate ``eval-core``:
   (the equity-axis schema).
 
 All vendor SDK calls live behind mockable ``_call_judge_<vendor>`` hooks so
-the unit tests written by ``foundation-eng`` can run fully offline.
+tests can run fully offline.
 
 Current contract:
     * ``data/schemas.py`` contains the canonical Pydantic v2 schemas.

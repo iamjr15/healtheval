@@ -1,14 +1,4 @@
-"""Smoke (c): `eval.judges.judge_panel()` exists and returns the
-expected shape WHEN MOCKED (the judge-panel contract / judge-call smoke gate).
-
-Owned by Teammate C (eval-core). All vendor SDK calls (Anthropic,
-Google GenAI, Sarvam) are patched at the
-boundary that `eval.judges` actually uses (`_call_judge_*`) so this
-test makes ZERO network calls — required by the reproducibility gate.
-
-XFAILs cleanly when `eval.judges.judge_panel` is not yet exposed or
-when its signature is still in flight.
-"""
+"""Offline judge-panel interface regression with mocked vendor boundaries."""
 from __future__ import annotations
 
 import importlib
@@ -33,11 +23,6 @@ def _get_callable(name: str):
     return getattr(mod, name, None)
 
 
-@pytest.mark.xfail(
-    _get_callable("judge_panel") is None,
-    reason="blocked on eval-core teammate (eval.judges.judge_panel not yet exposed)",
-    strict=False,
-)
 def test_judge_panel_returns_expected_shape_when_mocked():
     judges_mod = _get_judges_module()
     judge_panel = _get_callable("judge_panel")
@@ -79,8 +64,8 @@ def test_judge_panel_returns_expected_shape_when_mocked():
                 panel_model_id="sarvam-105b-conversations",
             )
         except TypeError as e:
-            # Signature drift — the API is in flight; flag rather than fail.
-            pytest.xfail(f"judge_panel signature still in flight: {e!s}")
+            # Signature drift is a regression in this required interface.
+            pytest.fail(f"judge_panel signature changed: {e!s}")
     finally:
         for p in started:
             try:

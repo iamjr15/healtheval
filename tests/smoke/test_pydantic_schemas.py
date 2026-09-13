@@ -1,15 +1,4 @@
-"""Smoke (a): Pydantic schemas import + the real shipped YAML configs
-validate against them.
-
-the prompt-set contract / the shared health system prompt / the reproducibility gate — `data/schemas.py` is owned by Teammate B
-(data-spec). When data-spec ships their schemas alongside their YAML
-configs, those configs MUST round-trip through the schemas — that is
-the Datasheets-for-Datasets reproducibility contract (Gebru CACM 2021,
-the reproducibility gate non-negotiable).
-
-Tests XFAIL cleanly while the schema or its accompanying YAML is still
-in flight; they flip to PASS the moment both arrive.
-"""
+"""Required benchmark YAML validates against the current Pydantic schemas."""
 from __future__ import annotations
 
 import importlib
@@ -49,11 +38,6 @@ def _model_panel_blocked(repo_root: Path) -> bool:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.xfail(
-    _prompt_schema_blocked(REPO_ROOT),
-    reason="blocked on data-spec teammate (data.schemas.Prompts and/or data/prompts.yaml not yet shipped)",
-    strict=False,
-)
 def test_prompts_yaml_validates_against_schema(repo_root):
     Prompts = _get_attr("Prompts")
     assert Prompts is not None
@@ -66,11 +50,6 @@ def test_prompts_yaml_validates_against_schema(repo_root):
     assert len(hand) >= 30, f"expected ≥30 health-written prompts, got {len(hand)}"
 
 
-@pytest.mark.xfail(
-    _model_panel_blocked(REPO_ROOT),
-    reason="blocked on data-spec teammate (data.schemas.ModelPanel and/or data/model_panel.yaml not yet shipped)",
-    strict=False,
-)
 def test_model_panel_yaml_validates_against_schema(repo_root):
     ModelPanel = _get_attr("ModelPanel")
     assert ModelPanel is not None
