@@ -32,7 +32,7 @@ dependencies = [
     "inspect-ai>=0.3,<1",
     # vendor SDKs for the 4-model panel
     "anthropic>=0.40,<1",
-    "google-genai>=0.3,<2",
+    "google-genai>=0.3,<3",
 ]
 
 [project.optional-dependencies]
