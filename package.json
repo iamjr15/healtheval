@@ -8,7 +8,7 @@
     "node": ">=22.22.0"
   },
   "devDependencies": {
-    "promptfoo": "0.121.20",
+    "promptfoo": "0.123.0",
     "wrangler": "^4.0.0"
   },
   "scripts": {
