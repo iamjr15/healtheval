@@ -1,0 +1,61 @@
+/* Shared rules use Streamlit's public test hooks, not generated class names. */
+[data-testid="stMainBlockContainer"] { max-width: 1180px; padding-top: 2.75rem; padding-bottom: 3rem; }
+[data-testid="stAppViewContainer"] { color: #20332f; background: #ffffff; }
+[data-testid="stSidebar"] { background: #f5f7f6; }
+h1 { font-size: 2.25rem !important; letter-spacing: -.035em; line-height: 1.18 !important; }
+h2 { font-size: 1.5rem !important; letter-spacing: -.02em; }
+h3 { font-size: 1.2rem !important; }
+[data-testid="stMarkdownContainer"] p { line-height: 1.65; text-wrap: pretty; }
+[data-testid="stMarkdownContainer"], [data-testid="stCaptionContainer"] { overflow-wrap: anywhere; }
+[data-testid="stMetricValue"] { font-size: 1.65rem; font-variant-numeric: tabular-nums; }
+[data-testid="stMetricValue"] > div, [data-testid="stMetricLabel"] p,
+[data-baseweb="select"] [data-baseweb="tag"] span,
+[data-baseweb="select"] > div > div { white-space: normal !important; text-overflow: clip !important; overflow-wrap: anywhere; }
+[data-baseweb="tag"] { height: auto !important; min-height: 1.75rem; }
+[data-testid="stExpander"] summary p { white-space: normal; overflow-wrap: anywhere; }
+[data-testid="stCode"] pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+[data-testid="stTable"] td, [data-testid="stTable"] th { white-space: normal; overflow-wrap: anywhere; }
+[data-testid="stDialog"] [role="dialog"] { width: min(960px, calc(100vw - 2rem)); }
+.he-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 1.5rem; padding: 1.25rem 0 1.5rem; border-bottom: 1px solid #dce5e0; }
+.he-metric { display: flex; flex-direction: column; gap: .3rem; }
+.he-metric > span { color: #435e53; font-size: .9rem; font-weight: 600; }
+.he-metric strong { font-size: 2.35rem; line-height: 1.15; letter-spacing: -.035em; font-weight: 600; font-variant-numeric: tabular-nums; }
+.he-metric small { color: #52665d; line-height: 1.45; font-size: .85rem; }
+.he-table { width: 100%; border-collapse: collapse; font-size: .94rem; line-height: 1.5; margin: .3rem 0 1rem; table-layout: fixed; }
+.he-table th { color: #52665d; font-weight: 600; text-align: left; background: #f5f7f6; }
+.he-table th, .he-table td { padding: .9rem .8rem; border-bottom: 1px solid #dce5e0; vertical-align: top; overflow-wrap: anywhere; white-space: normal; font-variant-numeric: tabular-nums; }
+.he-table--compact th:first-child { width: 14%; }
+[data-testid="stHtml"] { container-type: inline-size; }
+.he-table td:first-child { font-weight: 600; }
+@media (max-width: 900px) {
+  [data-testid="stMainBlockContainer"] { padding-left: 1.5rem; padding-right: 1.5rem; }
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  [data-testid="stColumn"] { min-width: min(100%, 220px); }
+}
+@media (max-width: 600px) {
+  [data-testid="stMainBlockContainer"] { padding: 2rem 1rem; }
+  h1 { font-size: 1.9rem !important; }
+  .he-metrics { gap: 1.25rem; }
+  .he-metric strong { font-size: 2rem; }
+  [data-testid="stTabs"] [role="tablist"] { flex-wrap: wrap; }
+}
+
+@container (max-width: 600px) {
+  .he-table, .he-table tbody, .he-table tr, .he-table td { display: block; width: 100%; }
+  .he-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .he-table tr { border-bottom: 1px solid #dce5e0; padding: .65rem 0; }
+  .he-table td { border: 0; display: grid; grid-template-columns: 40% 1fr; gap: .75rem; padding: .35rem 0; box-sizing: border-box; }
+  .he-table td::before { content: attr(data-label); color: #52665d; font-weight: 500; }
+}
+/* Base Web nests selected labels below its layout wrappers. */
+[data-baseweb="select"] div[value] {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+[data-baseweb="select"] > div:first-child,
+[data-baseweb="select"] > div:first-child > div:first-child {
+  height: auto !important;
+  min-height: 2.5rem;
+}

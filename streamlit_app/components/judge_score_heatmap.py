@@ -18,12 +18,13 @@ Inputs:
 Likert range is 1..5 (also derived from the score values themselves rather
 than hard-coded — the ``zmin`` / ``zmax`` reflect actual data range).
 """
+
 from __future__ import annotations
 
-from textwrap import wrap
 from typing import Any, Mapping, Sequence
 
 import streamlit as st
+from streamlit_app.presentation import model_name
 
 
 def _principle_label(pid: int, principles: Sequence[Mapping[str, Any]] | None) -> str:
@@ -34,15 +35,6 @@ def _principle_label(pid: int, principles: Sequence[Mapping[str, Any]] | None) -
             name = p.get("name", "")
             return f"P{pid} · {name}" if name else f"P{pid}"
     return f"P{pid}"
-
-
-def _short_judge_label(judge_model_id: str) -> str:
-    """Truncate ``claude-sonnet-4-6`` style ids for axis labels."""
-    if not judge_model_id:
-        return "?"
-    # Drop a vendor prefix like ``anthropic-`` if present.
-    parts = judge_model_id.split("-", 1)
-    return parts[1] if parts[0] in {"anthropic", "google", "sarvam"} else judge_model_id
 
 
 def render_judge_heatmap(
@@ -108,12 +100,9 @@ def render_judge_heatmap(
         return
 
     principles_seen.sort()
-    z = [
-        [grid.get((jid, pid)) for pid in principles_seen]
-        for jid in judges_seen
-    ]
+    z = [[grid.get((jid, pid)) for pid in principles_seen] for jid in judges_seen]
     x_labels = [_principle_label(pid, principles) for pid in principles_seen]
-    y_labels = [_short_judge_label(j) for j in judges_seen]
+    y_labels = [model_name(j) for j in judges_seen]
 
     # Lazy plotly import so headless tests don't pay the cost.
     import plotly.graph_objects as go  # noqa: PLC0415
@@ -144,14 +133,17 @@ def render_judge_heatmap(
     fig.update_layout(
         title=title or "",
         xaxis=dict(
-            title="Scoring principle", tickangle=0, tickvals=x_labels,
-            ticktext=["<br>".join(wrap(label.replace("_", " "), 24)) for label in x_labels],
+            title="Scoring principle",
+            tickangle=0,
+            tickvals=x_labels,
+            ticktext=[f"P{pid}" for pid in principles_seen],
         ),
         yaxis=dict(title="Judge"),
         height=max(220, 60 * len(y_labels) + 120),
-        margin=dict(l=10, r=10, t=40 if title else 10, b=80),
+        margin=dict(l=10, r=10, t=40 if title else 10, b=40),
     )
     st.plotly_chart(fig, width="stretch", key=key)
+    st.caption(" · ".join(label.replace("_", " ") for label in x_labels))
     st.caption(
         f"{len(y_labels)} judges × {len(x_labels)} principles "
         f"= {len([s for row in z for s in row if s is not None])} usable scores"

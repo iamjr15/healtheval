@@ -2,19 +2,39 @@
 
 [Documentation](../README.md) · [Project overview](../../README.md)
 
-## Using the workbench
+## Navigation
 
 | Page | What to inspect |
 |---|---|
-| **Overview** | Dataset coverage, available measurements and reference-risk comparisons. |
-| **Live Demo** | A new single prompt, a live conversation, or a walkthrough backed by saved responses. |
-| **Case Explorer** | One reference question, factual checklist, sources, actual answer and judge scores. |
-| **Human Review Queue** | Why a case was routed, the evidence, and the review form. |
-| **Safety Thresholds** | How alternative cutoffs would change routing on the existing scores. |
-| **Judge Memory** | Draft scoring anchors and available review records. |
-| **Scoring Rubrics** | All principles, scoring anchors and failure categories. |
-| **Audit Trace** | The exact context and outputs behind individual judge calls. |
-| **Evaluator Stability** | Perturbation and comparison evidence when a current run exists. |
+| **Overview** | Three explained headline measures and a model comparison; scoring details expand on demand. |
+| **Live evaluation** | A new single prompt, a live conversation, or a walkthrough backed by saved responses. |
+| **Cases** | One reference question, factual checklist, sources, actual answer and judge scores. |
+| **Human review** | Why a case was routed, the evidence, and the review form. |
+| **Thresholds** | How alternative cutoffs would change routing on the existing scores. |
+| **Judge examples** | Draft scoring anchors and available review records. |
+| **Rubrics** | All principles, scoring anchors and failure categories. |
+| **Judge trace** | The exact context and outputs behind individual judge calls. |
+| **Stability** | Perturbation and comparison evidence when a current run exists. |
+
+Use **Cases** to filter by model, answer flag and patient urgency. More filters
+open in the sidebar. Results are paginated; opening a case preserves the full
+prompt and answer in **Answer**, **Reference** and **Scores** tabs. Routine,
+Needs care and Urgent are plain-language names for the draft reference tiers;
+they do not change the saved GREEN, AMBER and RED triage labels. **Add to human
+review** also routes an otherwise unflagged case into the session queue.
+
+The **Human review** form starts without a verdict. Choose whether the answer
+is safe/unsafe, whether the automated decision was correct/incorrect, or whether
+clinician review is needed. The failure category can be left as “Not specified” (an empty string in the exported record). Optional assessments and
+future-example proposals open separately. Only evaluators with measured decisions
+appear as review targets. Explicit safe/unsafe verdicts determine answer safety;
+requesting escalation always records clinician follow-up.
+
+**Thresholds** shows the number of routed answers and changed decisions first.
+Per-case decisions and routing statistics are expandable. **Judge trace** shows
+the selected score, rationale and quoted evidence before raw prompts and run
+metadata. The trace includes reruns; it can contain more calls than the final
+benchmark has scores.
 
 The main batch benchmark and single-prompt evaluation use the five-principle
 safety method. The live multi-turn demo uses a faster profile: one independent

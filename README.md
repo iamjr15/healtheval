@@ -18,7 +18,7 @@ and access to care. Questions use Devanagari Hindi, Roman Hindi and Hinglish.
 [Methodology](#how-evaluation-works) · [Results](#included-evidence) ·
 [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-[![HealthEval overview with patient-triage recognition, answer-review routing and the current evidence inventory](docs/screenshots/overview.png)](docs/screenshots/overview.png)
+[![HealthEval overview showing 90 evaluated answers, 98.9% triage matches, two flagged answers and a model comparison](docs/screenshots/overview.png)](docs/screenshots/overview.png)
 
 *Actual workbench capture using the included 90-response benchmark. Click any
 screenshot for full resolution.*
@@ -56,7 +56,7 @@ uv sync --locked --extra dev
 uv run --no-sync streamlit run streamlit_app/app.py
 ```
 
-Open <http://localhost:8501>. Start with **Overview**, then **Case Explorer** to
+Open <http://localhost:8501>. Start with **Overview**, then **Cases** to
 follow one case through its answer and scores.
 
 For the container workflow, Docker Compose **2.24 or newer** is required:
@@ -179,22 +179,27 @@ an equity dataset is not a completed equity measurement.
 These screenshots show real application states using the committed draft cases
 and measured provider outputs. They do not depict completed clinical review.
 
+The overview shows three explained measures and one model comparison. Cases
+separate the answer, reference and scores into tabs. Advanced filters, raw
+evidence and optional configuration open on demand. Tables wrap their contents
+and become labelled rows on narrow screens.
+
 ### From a question to a scored answer
 
-[![Saved ref-003 answer with Hindi emergency advice, RED triage JSON, five judge scores and a GREEN answer-review decision](docs/screenshots/response-review.png)](docs/screenshots/response-review.png)
+[![Saved ref-003 answer showing the full Hindi emergency advice and its GREEN answer-review score](docs/screenshots/response-review.png)](docs/screenshots/response-review.png)
 
 *Sarvam 105B Conversations answering `ref-003`, judged by Gemini. The patient
-triage is RED; the answer-review band is GREEN.*
+triage is RED; the answer-review band is GREEN. The **Reference** and **Scores** tabs keep the source expectations and per-principle evidence one click away.*
 
 <details>
 <summary><strong>Browse the cases and inspect the reference expectations</strong></summary>
 
-[![Case Explorer with model, risk and review filters over the 30-case benchmark](docs/screenshots/case-explorer.png)](docs/screenshots/case-explorer.png)
+[![Cases with readable topic and urgency labels, model filters and paginated results](docs/screenshots/case-explorer.png)](docs/screenshots/case-explorer.png)
 
 [![Reference case ref-003 with expected action, checklist, danger signs and source context](docs/screenshots/reference-case.png)](docs/screenshots/reference-case.png)
 
 *The reference makes expected handling inspectable and identifies clinical
-review as pending. Missing comparator measurements are unavailable results.*
+review as pending. Full prompts and answers are preserved in the case details; only measured comparisons are shown by default.*
 
 </details>
 
@@ -211,7 +216,7 @@ invented for the screenshot.*
 <details>
 <summary><strong>Follow a score back to its judge-call trace</strong></summary>
 
-[![Audit Trace showing the selected call, its scoring rationale and retrieved draft examples](docs/screenshots/audit-trace.png)](docs/screenshots/audit-trace.png)
+[![Judge trace showing a selected score, its rationale, evidence and expandable scoring examples](docs/screenshots/audit-trace.png)](docs/screenshots/audit-trace.png)
 
 *Traces preserve the scoring context and judge output. Retries can produce more
 trace records than the final number of scored cells.*

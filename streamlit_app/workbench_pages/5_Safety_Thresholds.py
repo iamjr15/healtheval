@@ -1,4 +1,5 @@
 """Threshold sandbox over saved evaluator scores."""
+
 from __future__ import annotations
 
 import time
@@ -6,6 +7,12 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 import streamlit as st
+from streamlit_app.presentation import (
+    model_name,
+    risk_name,
+    metric_strip,
+    readable_table,
+)
 
 from eval.reference_risk import (
     REFERENCE_RISK_ORDER,
@@ -25,9 +32,6 @@ from streamlit_app.components.confusion_matrix import (
     render_confusion_matrix,
 )
 from streamlit_app.components.download_link import render_download_link
-from streamlit_app.components.sens_spec_table import (
-    render_sens_spec_kpi_strip,
-)
 from streamlit_app.config import (
     EVALUATOR_TRIAGE_AMBER_THRESHOLD,
     EVALUATOR_TRIAGE_GREEN_THRESHOLD,
@@ -47,6 +51,7 @@ from streamlit_app.threshold_sweep_writer import (
     list_sweeps,
     sweeps_to_jsonl_bytes,
 )
+
 # Likert bounds are constructed without bare 1.0 / 5.0 literals for the
 # dashboard hard-code scan.
 PRINCIPLE_OPTIONS = list(range(1, 13))
@@ -186,7 +191,9 @@ def _risk_tier_rows(
     return out
 
 
-def _confusion_for(rows: Sequence[Mapping[str, Any]], preds: Mapping[str, bool]) -> ConfusionCounts:
+def _confusion_for(
+    rows: Sequence[Mapping[str, Any]], preds: Mapping[str, bool]
+) -> ConfusionCounts:
     pairs: list[tuple[bool, bool]] = []
     for row in rows:
         if row["prompt_id"] not in preds:
@@ -227,15 +234,10 @@ def _routed_count(conf: ConfusionCounts) -> int:
     return conf.tp + conf.fp
 
 
-st.title("Safety Thresholds")
+st.title("Thresholds")
 st.caption(
-    "Tune the answer-review routing rule over the saved judge scores. This "
-    "page uses the reference risk tier as a workload proxy: yellow/red prompts "
-    "should usually route unless the response handled the risk correctly, while "
-    "routine prompts should clear when the response is safe. It does not rewrite "
-    "the underlying evaluation files."
+    "Preview how score thresholds change the review workload. Saved benchmark decisions stay unchanged."
 )
-
 canonical_path = select_complete_methodology_artifact()
 canonical_version_label = selected_methodology_version_label(canonical_path)
 raw_methodology, _selected_path, _suffix = load_methodology_artifact()
@@ -245,58 +247,73 @@ if not raw_methodology.get("rows"):
 
 model_ids = methodology_model_ids(raw_methodology)
 with st.sidebar:
-    st.header("Choose Thresholds")
+    st.header("Review rules")
     selected_model = None
     if len(model_ids) > 1:
         selected_model = st.selectbox(
             "Panel model",
             model_ids,
+            format_func=model_name,
             index=0,
             help="Recompute thresholds for this model's saved reference-set rows.",
         )
     elif model_ids:
         selected_model = model_ids[0]
-    st.subheader("HealthEval Safety Method")
-    principles = st.multiselect(
-        "Safety principles used by the judge",
-        options=PRINCIPLE_OPTIONS,
-        default=list(SAFETY_PRINCIPLE_IDS),
-        help=(
-            "Default = the current HealthEval Safety Method principles "
-            f"({', '.join(str(pid) for pid in SAFETY_PRINCIPLE_IDS)}). "
-            "Add principles to make the judge consider more concerns; "
-            "remove principles to make the rule narrower."
-        ),
-    )
+    with st.expander("Principles included"):
+        principles = st.multiselect(
+            "Scored principles",
+            options=sorted(
+                {
+                    int(c["principle_id"])
+                    for r in methodology_for_model(raw_methodology, selected_model).get(
+                        "rows", []
+                    )
+                    for c in r.get("judge_scores", [])
+                }
+            ),
+            default=list(SAFETY_PRINCIPLE_IDS),
+            help=(
+                "Default = the current HealthEval Safety Method principles "
+                f"({', '.join(str(pid) for pid in SAFETY_PRINCIPLE_IDS)}). "
+                "Add principles to make the judge consider more concerns; "
+                "remove principles to make the rule narrower."
+            ),
+        )
 
     green_threshold = st.slider(
-        "Safe threshold: judge mean must be at least this high",
-        min_value=SLIDER_LIKERT_MIN,
+        "Unflagged at or above",
+        min_value=SLIDER_LIKERT_MIN + SLIDER_LIKERT_STEP,
         max_value=SLIDER_LIKERT_MAX,
         value=DEFAULT_GREEN,
         step=SLIDER_LIKERT_STEP,
     )
-    amber_threshold = st.slider(
-        "Warning threshold: below this becomes RED",
-        min_value=SLIDER_LIKERT_MIN,
-        max_value=green_threshold - SLIDER_LIKERT_STEP,
-        value=min(DEFAULT_AMBER, green_threshold - SLIDER_LIKERT_STEP),
-        step=SLIDER_LIKERT_STEP,
-    )
-    st.subheader("CeRAI")
-    cerai_score_cutoff = st.slider(
-        "CeRAI comparison cutoff: below this routes response",
-        min_value=CERAI_SCORE_MIN,
-        max_value=CERAI_SCORE_MAX,
-        value=CERAI_DEFAULT_SCORE_CUTOFF,
-        step=CERAI_SCORE_STEP,
-        help=(
-            "CeRAI score = mean of Docker DB Accuracy, Relevance, and "
-            "Hallucination scores. Higher is better; scores below this cutoff "
-            "are routed to review. This is a comparison threshold, not a "
-            "HealthEval Safety Method default."
-        ),
-    )
+    if green_threshold <= SLIDER_LIKERT_MIN + SLIDER_LIKERT_STEP:
+        amber_threshold = SLIDER_LIKERT_MIN
+        st.caption("RED band starts below 1.0 at this setting.")
+    else:
+        amber_threshold = st.slider(
+            "RED score band below",
+            min_value=SLIDER_LIKERT_MIN,
+            max_value=green_threshold - SLIDER_LIKERT_STEP,
+            value=min(DEFAULT_AMBER, green_threshold - SLIDER_LIKERT_STEP),
+            step=SLIDER_LIKERT_STEP,
+        )
+    cerai_score_cutoff = CERAI_DEFAULT_SCORE_CUTOFF
+    if load_cerai_db_scores().get("scores_by_prompt"):
+        with st.expander("CeRAI comparator"):
+            cerai_score_cutoff = st.slider(
+                "CeRAI review cutoff",
+                min_value=CERAI_SCORE_MIN,
+                max_value=CERAI_SCORE_MAX,
+                value=CERAI_DEFAULT_SCORE_CUTOFF,
+                step=CERAI_SCORE_STEP,
+                help=(
+                    "CeRAI score = mean of Docker DB Accuracy, Relevance, and "
+                    "Hallucination scores. Higher is better; scores below this cutoff "
+                    "are routed to review. This is a comparison threshold, not a "
+                    "HealthEval Safety Method default."
+                ),
+            )
 
 per_prompt = _per_prompt_inputs(selected_model)
 baseline_canonical = _baseline_canonical_predictions(per_prompt, selected_model)
@@ -313,50 +330,8 @@ preds_cerai = _classify_cerai(
 )
 elapsed_ms = (time.perf_counter() - t0) * 1000
 
-st.caption(
-    f"Recomputed response-review rates for 2 evaluators × "
-    f"{len(per_prompt)} prompts in **{elapsed_ms:.1f} ms**  ·  target: "
-    "< 200 ms / tick. CeRAI is thresholded on Docker DB metric scores."
-)
 methodology_conf = _confusion_for(per_prompt, preds_methodology)
 cerai_conf = _confusion_for(per_prompt, preds_cerai)
-
-st.info("Review routing measures how many answers are sent to a reviewer. A correctly escalating answer to an emergency can pass response review. This is not a clinical sensitivity measurement.")
-if not preds_cerai:
-    st.info("CeRAI has not been measured for the current benchmark; no comparator decisions or rates are inferred.")
-
-cols = st.columns(2)
-with cols[0]:
-    st.markdown("**HealthEval Safety Method**")
-    render_sens_spec_kpi_strip(
-        "Safety Method",
-        methodology_conf.sensitivity,
-        methodology_conf.specificity,
-    )
-with cols[1]:
-    st.markdown("**CeRAI**")
-    render_sens_spec_kpi_strip(
-        "CeRAI",
-        cerai_conf.sensitivity,
-        cerai_conf.specificity,
-    )
-st.subheader("Answer Review By Reference Risk")
-st.caption(
-    "This section compares HealthEval review routing against the reference risk "
-    "tier. It is a routing/workload view, not a separate patient diagnosis."
-)
-risk_rows = _risk_tier_rows(per_prompt, preds_methodology)
-if risk_rows:
-    risk_df = pd.DataFrame(risk_rows)
-    risk_df["Rate"] = risk_df["Rate"].map(lambda v: f"{v * 100:.0f}%")
-    st.table(risk_df)
-st.subheader("Per-Case Classification Under Current Settings")
-st.caption(
-    "Read this as prompt-risk routing, not response correctness. `Routed risk` "
-    "means a yellow/red prompt was sent to review; `Passed risk` means a "
-    "yellow/red prompt was not sent to review; `Routed routine` means a green "
-    "prompt was sent to review."
-)
 
 
 def _cell_label(actual: bool, predicted: bool) -> str:
@@ -401,40 +376,69 @@ for row in per_prompt:
             "HealthEval mean": _score_label(meth_decision.get("jury_safety_mean")),
             "HealthEval result": _cell_label(actual, pred_meth),
             "CeRAI DB mean": _score_label(row.get("cerai_score_mean")),
-            "CeRAI result": _cell_label(actual, pred_cerai) if pid in preds_cerai else "Not measured",
+            "CeRAI result": _cell_label(actual, pred_cerai)
+            if pid in preds_cerai
+            else "Not measured",
         }
     )
 
-st.dataframe(
-    pd.DataFrame(classification_rows),
-    hide_index=True,
-    width="stretch",
+metric_strip(
+    [
+        (
+            "Answers to review",
+            sum(preds_methodology.values()),
+            f"Of {len(per_prompt)} saved answers",
+        ),
+        ("Changed decisions", len(flipped_prompt_ids), "Compared with the saved run"),
+    ]
 )
-st.subheader("Cases Changed From Current Saved Baseline")
-canonical_artefact_caption = (
-    f"Baseline source: `{canonical_path.name if canonical_path else '?'}`. "
-    "This is the complete HealthEval Safety Method result currently selected by the dashboard."
+st.caption(
+    "This is a workload preview, not a clinical sensitivity measure. Correct emergency advice can remain unflagged."
 )
-st.caption(canonical_artefact_caption)
+st.subheader("Review workload by patient urgency")
+readable_table(
+    [
+        {
+            "Patient urgency": risk_name(tier),
+            "Answers": sum(r["reference_risk_tier"] == tier for r in per_prompt),
+            "Routed to review": sum(
+                preds_methodology.get(r["prompt_id"], False)
+                for r in per_prompt
+                if r["reference_risk_tier"] == tier
+            ),
+        }
+        for tier in REFERENCE_RISK_ORDER
+    ],
+    label="Review workload",
+)
 if flipped_prompt_ids:
-    st.markdown(
-        "HealthEval Safety Method decision changed for **"
-        + str(len(flipped_prompt_ids))
-        + "** prompt(s) compared with the saved baseline:"
-    )
-    st.markdown(", ".join(f"`{p}`" for p in flipped_prompt_ids))
+    st.write("Changed cases: " + ", ".join(flipped_prompt_ids))
 else:
-    st.info(
-        "HealthEval Safety Method decision matches the saved baseline for all prompts "
-        "under the current settings — try changing "
-        "principles or thresholds."
+    st.caption("All routing decisions match the saved baseline at these settings.")
+with st.expander("Decisions for every case"):
+    readable_table(
+        [
+            {
+                "Case": r["Prompt ID"],
+                "Judge mean": r["HealthEval mean"],
+                "Answer review": "Flagged"
+                if preds_methodology[r["Prompt ID"]]
+                else "Unflagged",
+                **({"CeRAI result": r["CeRAI result"]} if preds_cerai else {}),
+            }
+            for r in classification_rows
+        ],
+        label="Threshold decisions",
     )
-st.subheader("Confusion Matrices")
-cm_cols = st.columns(2)
-with cm_cols[0]:
-    render_confusion_matrix(methodology_conf, title="HealthEval Safety Method (live)")
-with cm_cols[1]:
-    render_confusion_matrix(cerai_conf, title="CeRAI (live)")
+with st.expander("Advanced routing statistics"):
+    cm_cols = st.columns(2)
+    with cm_cols[0]:
+        render_confusion_matrix(
+            methodology_conf, title="HealthEval Safety Method (live)"
+        )
+    with cm_cols[1]:
+        if preds_cerai:
+            render_confusion_matrix(cerai_conf, title="CeRAI (live)")
 st.subheader("In-Session Threshold Experiment Log")
 st.caption(
     "Use this when comparing several slider settings during one browser session. "
@@ -444,7 +448,7 @@ st.caption(
 
 save_col, clear_col = st.columns([1, 1])
 with save_col:
-    if st.button("Save Current Settings To Log", type="primary"):
+    if st.button("Save experiment", type="primary"):
         record = append_sweep(
             config={
                 "methodology": {
@@ -474,7 +478,7 @@ with save_col:
 
 with clear_col:
     sweeps = list_sweeps()
-    if st.button("Clear In-Session Log", type="secondary", disabled=not sweeps):
+    if st.button("Clear experiments", type="secondary", disabled=not sweeps):
         clear_sweeps()
         st.rerun()
 
@@ -511,5 +515,5 @@ if sweeps:
 else:
     st.info(
         "No threshold settings have been saved in this browser session yet. "
-        "Adjust the sliders and click **Save Current Settings To Log** to compare runs."
+        "Adjust the sliders and click **Save experiment** to compare runs."
     )

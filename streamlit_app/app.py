@@ -1,4 +1,5 @@
 """Streamlit navigation entry point."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,8 +13,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from streamlit_app.config import (
     GITHUB_REPO_URL,
-    PROJECT_ID,
 )
+from streamlit_app.presentation import apply_styles
 from streamlit_app.evidence_validator import EvidenceMissing, validate_evidence
 
 APP_DIR = Path(__file__).parent
@@ -60,42 +61,42 @@ def _pages() -> list[st.Page]:  # type: ignore[name-defined]
         ),
         st.Page(
             PAGE_DIR / "2_Live_Demo.py",
-            title="Live Demo",
+            title="Live evaluation",
             url_path="Live_Demo",
         ),
         st.Page(
             PAGE_DIR / "3_Case_Explorer.py",
-            title="Case Explorer",
+            title="Cases",
             url_path="Case_Explorer",
         ),
         st.Page(
             PAGE_DIR / "4_Human_Review_Queue.py",
-            title="Human Review Queue",
+            title="Human review",
             url_path="Human_Review_Queue",
         ),
         st.Page(
             PAGE_DIR / "5_Safety_Thresholds.py",
-            title="Safety Thresholds",
+            title="Thresholds",
             url_path="Safety_Thresholds",
         ),
         st.Page(
             PAGE_DIR / "6_Judge_Memory.py",
-            title="Judge Memory",
+            title="Judge examples",
             url_path="Judge_Memory",
         ),
         st.Page(
             PAGE_DIR / "7_Scoring_Rubrics.py",
-            title="Scoring Rubrics",
+            title="Rubrics",
             url_path="Scoring_Rubrics",
         ),
         st.Page(
             PAGE_DIR / "8_Audit_Trace.py",
-            title="Audit Trace",
+            title="Judge trace",
             url_path="Audit_Trace",
         ),
         st.Page(
             PAGE_DIR / "9_Evaluator_Stability.py",
-            title="Evaluator Stability",
+            title="Stability",
             url_path="Evaluator_Stability",
         ),
     ]
@@ -103,23 +104,22 @@ def _pages() -> list[st.Page]:  # type: ignore[name-defined]
 
 def main() -> None:
     st.set_page_config(
-        page_title="HealthEval Evaluation Workbench",
+        page_title="HealthEval",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="auto",
         menu_items={
             "Get Help": GITHUB_REPO_URL or None,
-            "Report a bug": (
-                f"{GITHUB_REPO_URL}/issues" if GITHUB_REPO_URL else None
-            ),
+            "Report a bug": (f"{GITHUB_REPO_URL}/issues" if GITHUB_REPO_URL else None),
             "About": (
                 "HealthEval Evaluation Workbench — checks whether Hindi "
                 "health chatbot answers are safe, source-grounded, "
                 "and easy to audit. Automated evidence stays unchanged; "
                 "live runs and human reviews are added on top. "
-
             ),
         },
     )
+
+    apply_styles()
 
     # Phase 0 validator — fail fast with a clear message rather than
     # rendering half-loaded pages downstream.
@@ -130,7 +130,16 @@ def main() -> None:
         st.stop()
         return  # for type-checkers; st.stop() raises
 
-    st.navigation({"": _pages()}, position="sidebar", expanded=True).run()
+    pages = _pages()
+    st.navigation(
+        {
+            "HealthEval": pages[:4],
+            "Review": [pages[4], pages[8]],
+            "Method": [pages[5], pages[6], pages[7], pages[9]],
+        },
+        position="sidebar",
+        expanded=True,
+    ).run()
 
 
 if __name__ == "__main__":

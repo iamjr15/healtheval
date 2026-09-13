@@ -5,6 +5,7 @@ factual content. CeRAI's continuous score drift vs HealthEval's binary flag cons
 load-bearing empirical comparison in the audit. Anchored on Eiras et al. (ICLR 2025 Workshops)
 and Khullar et al. (arXiv:2512.10780, Dec 2025).
 """
+
 from __future__ import annotations
 
 import json
@@ -65,34 +66,21 @@ def _load_bases() -> dict[str, dict]:
 st.set_page_config(page_title="Evaluator Stability", layout="wide")
 st.title("Evaluator Stability")
 
-st.markdown(
-    "**The question this page answers.** When the *same factual content* is delivered in the "
-    "surface forms people seeking health advice in Hindi produce — Devanagari ↔ Roman Hindi, Hinglish "
-    "code-mix, SMS-length compression, register shifts — does each evaluator give consistent "
-    "verdicts? A clinical reviewer cannot trust a 0.85 score if the same medical content scores "
-    "0.50 under a different surface form. The target model is held fixed; the evaluator is the "
-    "variable under test."
+st.caption(
+    "Check whether judges give consistent scores when the same facts are rewritten in another Hindi script, style or register."
 )
-
-with st.container(border=True):
-    st.markdown(
-        "**Methodology anchors** &nbsp;·&nbsp; "
-        "[Eiras et al., ICLR 2025](https://proceedings.mlr.press/v296/eiras25a.html) — judge robustness "
-        "meta-evaluation (style perturbation can shift LLM-as-judge FNR by 0.24) &nbsp;·&nbsp; "
-        "[Khullar et al., arXiv:2512.10780](https://arxiv.org/abs/2512.10780) — Indian-language LLM "
-        "medical-triage script-shift on the same content &nbsp;·&nbsp; "
-        "[Flores et al. 2025](https://arxiv.org/abs/2506.14540) — asymmetric error costs in clinical AI "
-        "&nbsp;·&nbsp; [WHO 2024](https://www.who.int/publications/i/item/9789240084759) — automation "
-        "bias / large multi-modal model governance &nbsp;·&nbsp; "
-        "[Hughes 2024](https://stagingpure.psu.edu/en/publications/toward-improved-inference-for-krippendorffs-alpha-agreement-coeff) — "
-        "jackknife CI for Krippendorff α at small N."
-    )
-
 audit = _load_audit()
 if audit is None:
-    st.info("Stability testing has not been run for the current HealthEval benchmark.")
+    st.info("No stability results for this benchmark yet.")
+    st.markdown(
+        "Run a perturbation audit to compare equivalent answers across scripts and styles. The target answer’s facts must stay constant for the comparison to be meaningful."
+    )
+    st.markdown(
+        "[How to run the stability audit](https://github.com/iamjr15/healtheval/blob/main/docs/methodology/perturbation-audit.md)"
+    )
     st.stop()
 from eval.benchmark import require_current_benchmark
+
 require_current_benchmark(audit, label="perturbation audit")
 bases = _load_bases()
 perts = _load_perturbations()
@@ -113,7 +101,9 @@ else:
     c1, c2 = st.columns(2)
 
     with c1:
-        st.markdown("**CeRAI metric layer** (dashboard analyzer · `gemini-2.5-flash` judge · `llm_judge_positive` + `hallucination_haluqa`)")
+        st.markdown(
+            "**CeRAI metric layer** (dashboard analyzer · `gemini-2.5-flash` judge · `llm_judge_positive` + `hallucination_haluqa`)"
+        )
         st.metric(
             "Mean score range per prompt",
             f"{agg['cerai']['mean_score_range']:.3f}",
@@ -137,7 +127,9 @@ else:
         st.caption("Higher α = more stable. Higher score range = less stable.")
 
     with c2:
-        st.markdown("**HealthEval panel** (claude-sonnet-4-6 + gemini-2.5-pro jury · `final_safety_method` calibration)")
+        st.markdown(
+            "**HealthEval panel** (claude-sonnet-4-6 + gemini-2.5-pro jury · `final_safety_method` calibration)"
+        )
         m = agg["healtheval"]
         st.metric(
             "Prompts with identical `flagged` across all 7 cells",
@@ -201,24 +193,37 @@ if audit is not None:
             base = bases.get(row["prompt_id"], {})
             if base:
                 st.markdown(f"**User prompt:** {base.get('user_prompt', '')}")
-                st.caption(f"`violation_expected={base.get('violation_expected')}` · "
-                           f"urgency='{base.get('expected_urgency','')[:80]}…' · "
-                           f"`base_source={base.get('base_source','')}`")
+                st.caption(
+                    f"`violation_expected={base.get('violation_expected')}` · "
+                    f"urgency='{base.get('expected_urgency', '')[:80]}…' · "
+                    f"`base_source={base.get('base_source', '')}`"
+                )
             cerai_scores = row.get("cerai_scores_by_perturbation", {})
             maas_flags = row.get("healtheval_flags_by_perturbation", {})
-            maas_bands = (
-                row.get("healtheval_bands_by_perturbation")
-                or row.get("healtheval_triages_by_perturbation", {})
+            maas_bands = row.get("healtheval_bands_by_perturbation") or row.get(
+                "healtheval_triages_by_perturbation", {}
             )
             maas_means = row.get("healtheval_means_by_perturbation", {})
             perts_order = list(cerai_scores.keys()) or list(maas_flags.keys())
-            df = pd.DataFrame({
-                "perturbation": perts_order,
-                "cerai_mean": [round(cerai_scores.get(p), 3) if cerai_scores.get(p) is not None else None for p in perts_order],
-                "maas_jury_mean": [round(maas_means.get(p), 2) if maas_means.get(p) is not None else None for p in perts_order],
-                "maas_flagged": [maas_flags.get(p) for p in perts_order],
-                "maas_score_band": [maas_bands.get(p) for p in perts_order],
-            })
+            df = pd.DataFrame(
+                {
+                    "perturbation": perts_order,
+                    "cerai_mean": [
+                        round(cerai_scores.get(p), 3)
+                        if cerai_scores.get(p) is not None
+                        else None
+                        for p in perts_order
+                    ],
+                    "maas_jury_mean": [
+                        round(maas_means.get(p), 2)
+                        if maas_means.get(p) is not None
+                        else None
+                        for p in perts_order
+                    ],
+                    "maas_flagged": [maas_flags.get(p) for p in perts_order],
+                    "maas_score_band": [maas_bands.get(p) for p in perts_order],
+                }
+            )
             st.dataframe(df, use_container_width=True, hide_index=True)
 
             # Inspect-a-cell drill-down
@@ -226,7 +231,8 @@ if audit is not None:
             if ptype_options:
                 picked = st.selectbox(
                     "Inspect a cell — see the original prose, the perturbed prose, and the verifier's facts list:",
-                    options=ptype_options, key=f"inspect_{row['prompt_id']}",
+                    options=ptype_options,
+                    key=f"inspect_{row['prompt_id']}",
                 )
                 pert_rec = perts.get((row["prompt_id"], picked))
                 if pert_rec:
@@ -287,3 +293,27 @@ with st.expander("Full references"):
         "7. **Ribeiro, M. T. et al. (2020).** *Beyond Accuracy: Behavioral Testing of NLP Models with "
         "CheckList.* ACL 2020."
     )
+
+with st.expander("Research behind this method"):
+    st.markdown(
+        "**The question this page answers.** When the *same factual content* is delivered in the "
+        "surface forms people seeking health advice in Hindi produce — Devanagari ↔ Roman Hindi, Hinglish "
+        "code-mix, SMS-length compression, register shifts — does each evaluator give consistent "
+        "verdicts? A clinical reviewer cannot trust a 0.85 score if the same medical content scores "
+        "0.50 under a different surface form. The target model is held fixed; the evaluator is the "
+        "variable under test."
+    )
+
+    with st.container(border=True):
+        st.markdown(
+            "**Methodology anchors** &nbsp;·&nbsp; "
+            "[Eiras et al., ICLR 2025](https://proceedings.mlr.press/v296/eiras25a.html) — judge robustness "
+            "meta-evaluation (style perturbation can shift LLM-as-judge FNR by 0.24) &nbsp;·&nbsp; "
+            "[Khullar et al., arXiv:2512.10780](https://arxiv.org/abs/2512.10780) — Indian-language LLM "
+            "medical-triage script-shift on the same content &nbsp;·&nbsp; "
+            "[Flores et al. 2025](https://arxiv.org/abs/2506.14540) — asymmetric error costs in clinical AI "
+            "&nbsp;·&nbsp; [WHO 2024](https://www.who.int/publications/i/item/9789240084759) — automation "
+            "bias / large multi-modal model governance &nbsp;·&nbsp; "
+            "[Hughes 2024](https://stagingpure.psu.edu/en/publications/toward-improved-inference-for-krippendorffs-alpha-agreement-coeff) — "
+            "jackknife CI for Krippendorff α at small N."
+        )

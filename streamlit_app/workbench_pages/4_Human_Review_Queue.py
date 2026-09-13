@@ -1,10 +1,10 @@
 """Human review queue for cases routed out of the automated evaluator."""
+
 from __future__ import annotations
 
 import hmac
 import json
 import logging
-import math
 import os
 import statistics
 import uuid
@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import streamlit as st
+from streamlit_app.presentation import model_name, plain_name
 
 try:  # requests is in requirements.txt for the Cloudflare POST path.
     import requests  # type: ignore[import-untyped]
@@ -74,7 +75,9 @@ def _hitl_admin_token() -> str:
     return str(streamlit_secret or os.getenv("HITL_ADMIN_TOKEN", ""))
 
 
-def _judge_variance(judge_scores: list[Mapping[str, Any]], principle_ids: set[int]) -> float:
+def _judge_variance(
+    judge_scores: list[Mapping[str, Any]], principle_ids: set[int]
+) -> float:
     """Std-dev of the safety-band scores across all (judge × principle) cells."""
     vals = [
         float(c.get("score", 0))
@@ -152,7 +155,12 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
         meth_decision = methodology_decisions.get(prompt_id, {})
         cerai_decision = _cerai_decision_from_scores(cerai_db_scores.get(prompt_id, {}))
         inspect_decision = inspect_decisions.get(prompt_id, {})
-        reasons = decision_review_reasons(meth_decision, cerai_decision, inspect_decision)
+        reasons = decision_review_reasons(
+            meth_decision, cerai_decision, inspect_decision
+        )
+
+        if prompt_id in st.session_state.get("hitl_queue_target", []):
+            reasons.append("manual_review")
 
         expected_action = str(ref.get("expected_safety_action", "")).lower()
         if expected_action == "urgent":
@@ -183,6 +191,8 @@ def _build_queue(selected_model: str | None = None) -> list[dict[str, Any]]:
         )
 
     return queue
+
+
 # Persistence — POST to Cloudflare Pages Function (when token-gated).
 def _post_to_cloudflare(record: Mapping[str, Any], token: str) -> tuple[bool, str]:
     """POST one HITL review to the Cloudflare Pages Function endpoint.
@@ -219,25 +229,25 @@ def _route_reason_label(reason: str) -> str:
         score = parts[2] if len(parts) > 2 else "high"
         return f"Judge jury disagreed strongly ({score})"
     labels = {
-        "answer_flagged": "Answer flagged by HealthEval Safety Method",
+        "answer_flagged": "Answer flagged",
+        "manual_review": "Added from Cases",
         "cerai_vs_methodology_disagree": "CeRAI DB score disagreed with HealthEval Safety Method",
         "inspect_vs_methodology_disagree": "Inspect scorer disagreed with HealthEval Safety Method",
-        "expected_urgent": "Reference expected urgent referral",
-        "near_threshold": "Score was near a decision threshold",
+        "expected_urgent": "Urgent reference case",
+        "near_threshold": "Near score threshold",
     }
     return labels.get(reason, reason.replace("_", " "))
+
+
 _ensure_session_state()
 
-st.title("Human Review Queue")
+st.title("Human review")
 
 st.caption(
-    "Review cases that the automated system could not confidently resolve. "
-    "Your decisions are saved in this browser session by default and can be "
-    "downloaded as JSONL. Token-gated persistent mode appends reviews through "
-    "the Cloudflare endpoint."
+    "Read the answer, assess the automated decision and record your reasoning. Reviews stay in this browser session until you export them."
 )
 with st.sidebar:
-    st.header("Queue and Saving")
+    st.header("Review queue")
 
     raw_methodology, _selected_path, _suffix = load_methodology_artifact()
     model_ids = methodology_model_ids(raw_methodology)
@@ -246,6 +256,7 @@ with st.sidebar:
         selected_model = st.selectbox(
             "Panel model",
             model_ids,
+            format_func=model_name,
             index=0,
             help="Choose which model's cases should be routed for review.",
         )
@@ -254,17 +265,9 @@ with st.sidebar:
 
     queue = _build_queue(selected_model)
     total_queue = len(queue)
-    st.metric("Cases in queue", f"{total_queue}")
-
     submitted_count = len(st.session_state[SESSION_KEY_REVIEWS])
     rate_remaining = max(0, HITL_RATE_LIMIT_PER_SESSION - submitted_count)
-    st.metric(
-        "Reviews saved this session",
-        f"{submitted_count}",
-        delta=f"{rate_remaining} remaining",
-        delta_color="inverse",
-    )
-
+    st.caption(f"{total_queue} queued · {submitted_count} reviews saved this session")
     if rate_remaining == 0:
         st.error(
             f"Review limit reached ({HITL_RATE_LIMIT_PER_SESSION} per session). "
@@ -276,55 +279,54 @@ with st.sidebar:
     st.subheader("Filter Cases")
     all_reasons = sorted({r for entry in queue for r in entry["reasons"]})
     selected_reasons = st.multiselect(
-        "Why the case was sent here",
+        "Routing reason",
         options=all_reasons,
-        default=all_reasons,
+        default=[],
         format_func=_route_reason_label,
         help=(
-            "A case can appear for more than one reason: parse failure, "
+            "Leave empty to show all reasons. A case can appear for more than one reason: parse failure, "
             "tool disagreement, expected urgent referral, or scores near a threshold."
         ),
     )
     show_dismissed = st.toggle("Show dismissed", value=False)
 
-    st.divider()
-    st.subheader("Persistent storage (optional)")
-    st.caption(
-        "By default, reviews stay in this browser session. Enter the admin "
-        "token only when an authenticated review endpoint has been configured. "
-        "The endpoint operator manages storage and retention."
-    )
-    secret_token = _hitl_admin_token()
-
-    if not secret_token:
+    with st.expander("Optional review storage"):
         st.caption(
-            "The admin token is not configured on this deployment, so persistent "
-            "saving is disabled."
+            "By default, reviews stay in this browser session. Enter the admin "
+            "token only when an authenticated review endpoint has been configured. "
+            "The endpoint operator manages storage and retention."
         )
-    else:
-        with st.expander("Enable Repo Saving", expanded=False):
-            entered = st.text_input(
-                "Admin token",
-                type="password",
-                key="hitl_admin_token_input",
+        secret_token = _hitl_admin_token()
+
+        if not secret_token:
+            st.caption(
+                "The admin token is not configured on this deployment, so persistent "
+                "saving is disabled."
             )
-            if st.button("Validate token"):
-                # hmac.compare_digest is constant-time; both args must be str.
-                ok = hmac.compare_digest(str(entered), str(secret_token))
-                st.session_state[SESSION_KEY_TOKEN_OK] = ok
-                if ok:
-                    st.success("Token accepted — repo saving enabled.")
-                else:
-                    st.error("Token mismatch — reviews will stay session-only.")
-            if st.session_state[SESSION_KEY_TOKEN_OK]:
-                st.caption("Repo saving is active for this session.")
-                if not CLOUDFLARE_HITL_ENDPOINT_URL:
-                    st.warning(
-                        "The admin token is configured, but the Cloudflare "
-                        "save endpoint is not configured, so "
-                        "reviews will stay session-only.",
-                        icon="⚠️",
-                    )
+        else:
+            with st.expander("Connect review storage", expanded=False):
+                entered = st.text_input(
+                    "Admin token",
+                    type="password",
+                    key="hitl_admin_token_input",
+                )
+                if st.button("Validate token"):
+                    # hmac.compare_digest is constant-time; both args must be str.
+                    ok = hmac.compare_digest(str(entered), str(secret_token))
+                    st.session_state[SESSION_KEY_TOKEN_OK] = ok
+                    if ok:
+                        st.success("Token accepted — persistent saving enabled.")
+                    else:
+                        st.error("Token mismatch — reviews will stay session-only.")
+                if st.session_state[SESSION_KEY_TOKEN_OK]:
+                    st.caption("Persistent saving is active for this session.")
+                    if not CLOUDFLARE_HITL_ENDPOINT_URL:
+                        st.warning(
+                            "The admin token is configured, but the Cloudflare "
+                            "save endpoint is not configured, so "
+                            "reviews will stay session-only.",
+                            icon="⚠️",
+                        )
 persistent_mode_active = bool(
     st.session_state[SESSION_KEY_TOKEN_OK] and CLOUDFLARE_HITL_ENDPOINT_URL
 )
@@ -335,32 +337,27 @@ dismissed: set[str] = st.session_state[SESSION_KEY_DISMISSED]
 visible_queue = [
     entry
     for entry in queue
-    if any(r in selected_reasons for r in entry["reasons"])
+    if (not selected_reasons or any(r in selected_reasons for r in entry["reasons"]))
     and (show_dismissed or entry["prompt_id"] not in dismissed)
 ]
 
 st.subheader(
-    f"{len(visible_queue)} case(s) need human review"
+    f"{len(visible_queue)} cases to review"
     + (f" · {len(dismissed)} dismissed" if dismissed and not show_dismissed else "")
 )
 
 if not visible_queue:
-    st.info(
-        "No cases match the current filter. Widen the routing-reason filter."
-    )
+    st.info("No cases match the current filter. Widen the routing-reason filter.")
 
 seed_calibration_ids = [
-    str(ex.get("id"))
-    for ex in load_calibration_examples()
-    if ex.get("id")
+    str(ex.get("id")) for ex in load_calibration_examples() if ex.get("id")
 ]
 
 try:
     rubric_packs = load_rubric_packs()
     safety_pack = rubric_packs.get("health_safety_v1") or {}
     failure_categories_for_form = list(
-        safety_pack.get("failure_categories")
-        or CANONICAL_FAILURE_CATEGORIES
+        safety_pack.get("failure_categories") or CANONICAL_FAILURE_CATEGORIES
     )
     rubric_version = safety_pack.get("version", "v1")
     rubric_metric = safety_pack.get("metric", "health_safety")
@@ -368,13 +365,22 @@ try:
 except Exception:  # noqa: BLE001 — fall back to the canonical floor
     failure_categories_for_form = list(CANONICAL_FAILURE_CATEGORIES)
     rubric_version_label = "health_safety_v1"
+st.caption(
+    "Urgent reference cases also enter the queue when the model’s answer is unflagged."
+)
 for entry in visible_queue:
     prompt_id = entry["prompt_id"]
     ref = entry["ref_item"]
 
     with st.expander(
-        f"**{prompt_id}** — {ref.get('hindi_text', '')[:80]}"
-        + ("…" if len(ref.get("hindi_text", "")) > 80 else ""),
+        f"{prompt_id} · {plain_name(ref.get('health_topic', 'Health'))} · "
+        + (
+            "Flagged"
+            if entry["healtheval_decision"].get("flagged")
+            else "Urgent check"
+            if "expected_urgent" in entry["reasons"]
+            else "Review check"
+        ),
         expanded=False,
     ):
         if rate_remaining == 0:
@@ -384,6 +390,14 @@ for entry in visible_queue:
             )
             continue
 
+        st.markdown("**Patient prompt**")
+        st.write(ref.get("hindi_text", ""))
+        with st.expander("Reference guidance"):
+            for fact in ref.get("factual_checklist", []):
+                st.markdown(f"- {fact}")
+            if ref.get("source_url"):
+                st.markdown(f"[Read the source]({ref['source_url']})")
+            st.caption("Draft reference; clinical review pending.")
         record = render_hitl_form(
             prompt_id=prompt_id,
             rubric_version=rubric_version_label,
@@ -426,7 +440,7 @@ for entry in visible_queue:
         st.success(success_msg, icon="✅")
         st.rerun()
 st.divider()
-st.subheader("Reviews Saved In This Session")
+st.subheader("Session reviews")
 
 session_reviews = st.session_state[SESSION_KEY_REVIEWS]
 repo_reviews = load_hitl_reviews_repo()
@@ -464,13 +478,15 @@ with dl_col:
     if payload:
         payload += "\n"
     render_download_link(
-        "Download Session Reviews (JSONL)",
+        "Export reviews (JSONL)",
         payload.encode("utf-8"),
         file_name=f"hitl_reviews_{datetime.now(tz=timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.jsonl",
         mime="application/jsonl",
         disabled=not session_reviews,
     )
 with clear_col:
-    if st.button("Clear session reviews", type="secondary", disabled=not session_reviews):
+    if st.button(
+        "Clear session reviews", type="secondary", disabled=not session_reviews
+    ):
         st.session_state[SESSION_KEY_REVIEWS] = []
         st.rerun()

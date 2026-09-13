@@ -23,6 +23,7 @@ the HITL persistence contract "Required protections — always on, both modes"):
 The page owns queue routing and persistence; this component only builds
 and validates one review record.
 """
+
 from __future__ import annotations
 
 import html
@@ -32,14 +33,15 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import streamlit as st
+from streamlit_app.presentation import risk_name
 
-from eval.reference_risk import reference_risk_label
 from streamlit_app.config import (
     CANONICAL_FAILURE_CATEGORIES,
     CERAI_DB_SCORE_CUTOFF,
     HITL_COMMENT_MAX_CHARS,
     HITL_PROMOTE_REASONING_MAX_CHARS,
 )
+
 # Closed enums for the form — kept here rather than imported from schemas.py
 # because the radio's display order matters (UX), and the enum order in
 # the TypedDict is alphabetical-by-author rather than UX-prioritised.
@@ -78,7 +80,7 @@ _HUMAN_DECISION_LABEL: dict[str, str] = {
 }
 
 _EVALUATOR_TARGET_LABEL: dict[str, str] = {
-    "healtheval_safety_method": "HealthEval Safety Method",
+    "healtheval_safety_method": "HealthEval",
     "cerai": "CeRAI",
     "inspect": "Inspect scorer",
 }
@@ -113,6 +115,7 @@ def _route_reason_label(reason: str) -> str:
         score = parts[2] if len(parts) > 2 else "high"
         return f"Judge jury disagreed strongly ({score})"
     labels = {
+        "manual_review": "added from Cases",
         "cerai_vs_methodology_disagree": "CeRAI DB score disagreed with HealthEval Safety Method",
         "inspect_vs_methodology_disagree": "Inspect scorer disagreed with HealthEval Safety Method",
         "expected_urgent": "Reference expected urgent referral",
@@ -214,8 +217,10 @@ def render_hitl_form(
     lives on the sidebar — passing it down keeps the side-effect bookkeeping
     near the form.
     """
-    fc_options = list(failure_categories) if failure_categories else list(
-        CANONICAL_FAILURE_CATEGORIES
+    fc_options = (
+        list(failure_categories)
+        if failure_categories
+        else list(CANONICAL_FAILURE_CATEGORIES)
     )
 
     form_key = f"hitl_form__{prompt_id}"
@@ -228,40 +233,34 @@ def render_hitl_form(
             + " · ".join(_route_reason_label(r) for r in auto_route_reasons)
         )
 
-    # Panel response excerpt + ground truth (read-only) — keeps reviewers
-    # anchored to what the model actually said before they fill the form.
-    meta_cols = st.columns([1, 1, 1, 2])
-    with meta_cols[0]:
-        st.markdown(f"**Reference action:** `{expected_safety_action or '?'}`")
-    with meta_cols[1]:
-        risk_label = reference_risk_label(reference_risk_tier) if reference_risk_tier else "?"
-        st.markdown(f"**Reference risk:** `{risk_label}`")
-    with meta_cols[2]:
-        st.markdown(f"**Rubric:** `{rubric_version}`")
-    with meta_cols[3]:
-        mode_label = (
-            "Repo saving enabled"
-            if persistence_mode_label == "github_api"
-            else "Session-only saving"
-        )
-        st.markdown(f"**Saving:** {mode_label}")
-
+    st.caption(
+        f"Patient urgency: {risk_name(reference_risk_tier)} · {rubric_version} · {'Persistent saving' if persistence_mode_label == 'github_api' else 'Session saving'}"
+    )
     if panel_response_excerpt:
-        with st.expander("Model response excerpt", expanded=False):
-            st.markdown(_visible_response_text(panel_response_excerpt)[:1200])
-    st.markdown("**Automated decisions (read-only)**")
-    eval_cols = st.columns(3)
+        st.markdown("**Model answer**")
+        st.write(_visible_response_text(panel_response_excerpt))
     eval_specs = [
         ("healtheval_safety_method", healtheval_decision),
         ("cerai", cerai_decision),
         ("inspect", inspect_decision),
     ]
-    original_eval_payload: dict[str, str] = {}
-    for col, (name, decision) in zip(eval_cols, eval_specs):
-        verdict = _evaluator_safety_label(decision)
-        original_eval_payload[name] = verdict
-        with col:
-            _render_automated_decision(name, decision)
+    available = [
+        (name, decision)
+        for name, decision in eval_specs
+        if decision and isinstance(decision.get("flagged"), bool)
+    ]
+    original_eval_payload = {
+        name: _evaluator_safety_label(decision) for name, decision in available
+    }
+    for name, decision in available:
+        st.markdown(
+            f"**{_target_label(name)}: {'Flagged' if decision['flagged'] else 'Unflagged'}**"
+            + (
+                f" · {_format_score(decision['jury_safety_mean'])} / 5"
+                if decision.get("jury_safety_mean") is not None
+                else ""
+            )
+        )
     with st.form(key=form_key, clear_on_submit=False):
         reviewer_role = st.selectbox(
             "Reviewer role",
@@ -272,66 +271,52 @@ def render_hitl_form(
             help="Tag your role so the audit trail can weight clinician verdicts.",
         )
 
-        human_decision = st.radio(
+        human_decision = st.selectbox(
             "Your verdict",
             options=HUMAN_DECISION_OPTIONS,
-            index=0,
-            horizontal=True,
+            index=None,
+            placeholder="Choose a verdict",
             key=f"{form_key}__decision",
             format_func=_human_decision_label,
-            captions=[_HUMAN_DECISION_HELP[o] for o in HUMAN_DECISION_OPTIONS],
         )
-
-        targets_default = (
-            ["healtheval_safety_method"]
-            if human_decision in {"correct", "incorrect"}
-            else list(EVALUATOR_TARGETS)
-        )
-        human_decision_targets = st.multiselect(
-            "Verdict applies to",
-            options=EVALUATOR_TARGETS,
-            default=targets_default,
-            key=f"{form_key}__targets",
-            format_func=_target_label,
-            help=(
-                "Select which evaluator output this human verdict is judging. "
-                "Use multiple targets when the same verdict applies to both "
-                "the HealthEval Safety Method and another evaluator."
-            ),
-        )
-
-        model_response_safe = st.checkbox(
-            "The model response is actually safe",
-            value=human_decision in {"correct", "safe"},
-            key=f"{form_key}__safe",
-        )
-        needs_clinician_review = st.checkbox(
-            "Needs clinician review",
-            value=human_decision == "escalate",
-            key=f"{form_key}__escalate",
-        )
-
+        target_options = [name for name, _ in available]
+        if len(target_options) > 1:
+            human_decision_targets = st.multiselect(
+                "Evaluators reviewed",
+                options=target_options,
+                default=target_options[:1],
+                key=f"{form_key}__targets",
+                format_func=_target_label,
+            )
+        else:
+            human_decision_targets = target_options
         failure_category = st.selectbox(
-            "Failure category",
-            options=fc_options,
-            index=0,
+            "Failure category, if any",
+            options=[""] + fc_options,
             key=f"{form_key}__category",
-            format_func=_plain_label,
+            format_func=lambda v: _plain_label(v) if v else "Not specified",
         )
-
-        promote = st.checkbox(
-            "Use this case as a future judge-memory example",
-            value=False,
-            key=f"{form_key}__promote",
-        )
-        promote_reasoning_raw = st.text_area(
-            "Why this should become a judge-memory example",
-            value="",
-            max_chars=HITL_PROMOTE_REASONING_MAX_CHARS,
-            key=f"{form_key}__promote_reason",
-            disabled=not promote,
-            placeholder="Required when adding this case to judge memory.",
-        )
+        with st.expander("Additional assessment and future scoring example"):
+            model_response_safe = st.checkbox(
+                "I also confirm the answer is safe",
+                value=False,
+                key=f"{form_key}__safe",
+                help="Use when assessing the automated decision. A ‘Response is safe/unsafe’ verdict takes precedence.",
+            )
+            needs_clinician_review = st.checkbox(
+                "Request clinician follow-up", value=False, key=f"{form_key}__escalate"
+            )
+            promote = st.checkbox(
+                "Propose as a future scoring example",
+                value=False,
+                key=f"{form_key}__promote",
+            )
+            promote_reasoning_raw = st.text_area(
+                "Reason for proposing this example",
+                max_chars=HITL_PROMOTE_REASONING_MAX_CHARS,
+                key=f"{form_key}__promote_reason",
+                placeholder="Required only when proposing a scoring example.",
+            )
 
         comment_raw = st.text_area(
             "Review notes",
@@ -349,7 +334,7 @@ def render_hitl_form(
 
     if not submitted:
         return None
-    if failure_category not in fc_options:
+    if failure_category and failure_category not in fc_options:
         st.error(
             f"failure_category `{failure_category}` not in rubric pack — refusing.",
             icon="🚫",
@@ -361,6 +346,9 @@ def render_hitl_form(
             icon="🚫",
         )
         return None
+    if human_decision in {"safe", "unsafe"}:
+        model_response_safe = human_decision == "safe"
+    needs_clinician_review = needs_clinician_review or human_decision == "escalate"
     if not human_decision_targets:
         st.error("Pick at least one evaluator target for this verdict.", icon="🚫")
         return None
@@ -396,9 +384,7 @@ def render_hitl_form(
         "rubric_version_at_review": rubric_version,
         "calibration_example_ids_at_review": list(calibration_example_ids or []),
         "created_at": datetime.now(tz=timezone.utc).isoformat(),
-        "client_session_id": st.session_state.get(
-            "client_session_id", "anonymous"
-        ),
+        "client_session_id": st.session_state.get("client_session_id", "anonymous"),
         "persistence_mode": persistence_mode_label,
     }
     return record

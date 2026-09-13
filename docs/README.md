@@ -14,7 +14,7 @@ screenshots, then choose the guide that matches your task.
 | Configure credentials, limits and storage | [Configuration reference](reference/configuration.md) |
 | Understand the folders and component boundaries | [Architecture](reference/architecture.md) |
 | Inspect authored inputs and their review status | [Datasets](reference/datasets.md) and [verified sources](research/health-sources.md) |
-| See what has actually been tested | [End-to-end validation](validation/end-to-end.md) and [delivery checks](validation/production-quality.md) |
+| See what has actually been tested | [End-to-end validation](validation/end-to-end.md) and [delivery checks](validation/production-quality.md), plus [dashboard usability](validation/dashboard-usability.md) |
 | Inspect optional research methods | [Perturbation audit](methodology/perturbation-audit.md), [CeRAI findings](methodology/cerai-findings.md) |
 | Repeat visual QA | [Browser QA](guides/browser-qa.md) and [screenshot capture guide](screenshots/README.md) |
 

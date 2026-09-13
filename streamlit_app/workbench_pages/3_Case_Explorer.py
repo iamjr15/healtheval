@@ -1,9 +1,11 @@
 """Case Explorer page."""
+
 from __future__ import annotations
 
 from typing import Any, Mapping
 
 import streamlit as st
+from streamlit_app.presentation import model_name, plain_name, risk_name, readable_table
 
 from eval.reference_risk import (
     REFERENCE_RISK_ORDER,
@@ -63,18 +65,16 @@ def _build_table_row(
         "ref_id": pid,
         "reference_risk_tier": tier,
         "reference_risk": reference_risk_label(tier),
-        "hindi_text": (
-            (item.get("hindi_text", "") or "")[:80]
-            + ("…" if len(item.get("hindi_text", "") or "") > 80 else "")
-        ),
+        "hindi_text": item.get("hindi_text", "") or "",
+        "topic": plain_name(item.get("health_topic", "Health")),
         "healtheval_flagged": bool(m_out.get("flagged")),
         "judge_failures": int(
             decision.get(
                 "n_failed_judge_cells",
                 m_out.get("n_failed_judge_cells", 0),
-        )
-        or 0
-    ),
+            )
+            or 0
+        ),
         "cerai_db_mean": cerai_scores.get("mean"),
         "cerai_flagged": _cerai_routes_from_scores(cerai_scores),
         "hitl_status": (
@@ -122,16 +122,31 @@ def _filter_passes(
         methodology_row or {}, _LOW_JUDGE_SCORE_CUTOFF
     ):
         return False
-    if hitl_status_filter == "human_reviewed" and table_row["hitl_status"] == "not reviewed":
+    if (
+        hitl_status_filter == "human_reviewed"
+        and table_row["hitl_status"] == "not reviewed"
+    ):
         return False
-    if hitl_status_filter == "not_reviewed" and table_row["hitl_status"] != "not reviewed":
+    if (
+        hitl_status_filter == "not_reviewed"
+        and table_row["hitl_status"] != "not reviewed"
+    ):
         return False
     persona = item.get("persona_metadata") or {}
-    if persona_caste != "any" and str(persona.get("caste", "")).lower() != persona_caste.lower():
+    if (
+        persona_caste != "any"
+        and str(persona.get("caste", "")).lower() != persona_caste.lower()
+    ):
         return False
-    if persona_geo != "any" and str(persona.get("geography", "")).lower() != persona_geo.lower():
+    if (
+        persona_geo != "any"
+        and str(persona.get("geography", "")).lower() != persona_geo.lower()
+    ):
         return False
-    if persona_edu != "any" and str(persona.get("education_level", "")).lower() != persona_edu.lower():
+    if (
+        persona_edu != "any"
+        and str(persona.get("education_level", "")).lower() != persona_edu.lower()
+    ):
         return False
     return True
 
@@ -177,6 +192,7 @@ def _open_modal(prompt_id: str, ctx: dict) -> None:
 
     dialog = getattr(st, "dialog", None)
     if dialog is not None:
+
         @st.dialog(f"Case detail — {prompt_id}", width="large")  # type: ignore[misc]
         def _show() -> None:
             _body()
@@ -188,11 +204,9 @@ def _open_modal(prompt_id: str, ctx: dict) -> None:
 
 
 def main() -> None:
-    st.title("Reference Case Explorer")
+    st.title("Cases")
     st.caption(
-        "Browse the 30 fixed test cases. Open a case to compare the expected "
-        "answer, the model response, evaluator decisions, judge scores, and "
-        "any human reviews."
+        "Choose a saved answer to inspect its patient urgency, reference facts and judge scores."
     )
 
     refset = load_reference_set()
@@ -205,6 +219,7 @@ def main() -> None:
         selected_model = st.sidebar.selectbox(
             "Panel model",
             model_ids,
+            format_func=model_name,
             index=0,
             help="Choose which model's saved n=30 results to review.",
         )
@@ -226,54 +241,41 @@ def main() -> None:
         hitl_by_prompt.setdefault(str(r.get("prompt_id", "")), []).append(r)
 
     ref_by_id = {str(it.get("id")): it for it in items}
-    st.sidebar.header("Show Cases Where")
-    st.sidebar.caption(
-        f"Complete result file: `{selected_path.name}` "
-        f"(model `{selected_model or 'single target'}`)."
-    )
+    st.sidebar.header("Filter cases")
     healtheval_flagged = st.sidebar.selectbox(
-        "HealthEval flags response",
-        ["all", "true", "false"],
-        index=0,
-        format_func=_yes_no_any_label,
+        "Answer flagged", ["all", "true", "false"], format_func=_yes_no_any_label
     )
-    cerai_disagrees = st.sidebar.selectbox(
-        "CeRAI DB decision disagrees with HealthEval Safety Method",
-        ["all", "true", "false"],
-        index=0,
-        format_func=_yes_no_any_label,
-    )
-    expected_urgent = st.sidebar.checkbox("Expected urgent referral")
     reference_risk_filter = st.sidebar.selectbox(
-        "Reference risk tier",
+        "Patient urgency",
         ["any"] + list(REFERENCE_RISK_ORDER),
-        index=0,
-        format_func=lambda v: "Any" if v == "any" else reference_risk_label(v),
+        format_func=lambda v: "Any" if v == "any" else risk_name(v),
     )
-    low_judge_score = st.sidebar.checkbox(
-        f"Any judge score ≤ {_LOW_JUDGE_SCORE_CUTOFF:g}"
-    )
-    hitl_status_filter = st.sidebar.selectbox(
-        "Human review status",
-        ["all", "human_reviewed", "not_reviewed"],
-        index=0,
-        format_func=_human_review_label,
-    )
-    persona_caste = st.sidebar.selectbox(
-        "Persona caste", _persona_options(items, "caste"), index=0, format_func=_any_label
-    )
-    persona_geo = st.sidebar.selectbox(
-        "Persona geography",
-        _persona_options(items, "geography"),
-        index=0,
-        format_func=_any_label,
-    )
-    persona_edu = st.sidebar.selectbox(
-        "Persona education",
-        _persona_options(items, "education_level"),
-        index=0,
-        format_func=_any_label,
-    )
+    with st.sidebar.expander("More filters"):
+        cerai_disagrees = st.selectbox(
+            "Comparator disagreement",
+            ["all", "true", "false"],
+            format_func=_yes_no_any_label,
+            disabled=not cerai_scores_by_prompt,
+            help="Only available when CeRAI scores exist for this benchmark.",
+        )
+        expected_urgent = st.checkbox("Emergency referral expected")
+        low_judge_score = st.checkbox(f"Any judge score ≤ {_LOW_JUDGE_SCORE_CUTOFF:g}")
+        hitl_status_filter = st.selectbox(
+            "Human review",
+            ["all", "human_reviewed", "not_reviewed"],
+            format_func=_human_review_label,
+        )
+        persona_caste = st.selectbox(
+            "Caste", _persona_options(items, "caste"), format_func=_any_label
+        )
+        persona_geo = st.selectbox(
+            "Geography", _persona_options(items, "geography"), format_func=_any_label
+        )
+        persona_edu = st.selectbox(
+            "Education",
+            _persona_options(items, "education_level"),
+            format_func=_any_label,
+        )
     table_rows: list[dict] = []
     for it in items:
         pid = str(it.get("id", ""))
@@ -302,49 +304,20 @@ def main() -> None:
             continue
         table_rows.append(row)
 
-    st.markdown(f"### {len(table_rows)} of {len(items)} cases match")
+    st.subheader(f"{len(table_rows)} matching cases")
     st.caption(
-        "`Reference risk` describes the prompt. `Flags response = true` means "
-        "that evaluator judged the saved model answer as needing human review; "
-        "`false` means it passed that evaluator. CeRAI uses the Docker DB mean "
-        "of Accuracy, Relevance, and Hallucination scores."
+        "Patient urgency comes from the draft reference. An answer flag means automated review is needed; it is not a confirmed error."
     )
-
     if table_rows:
-        import pandas as pd  # noqa: PLC0415
-
-        df = pd.DataFrame(table_rows)
-        st.dataframe(
-            df[
-                [
-                    "ref_id",
-                    "reference_risk",
-                    "hindi_text",
-                    "healtheval_flagged",
-                    "cerai_db_mean",
-                    "cerai_flagged",
-                ]
-            ],
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "ref_id": "Ref id",
-                "reference_risk": "Reference risk",
-                "hindi_text": "Hindi prompt (truncated)",
-                "healtheval_flagged": "HealthEval flags response",
-                "cerai_db_mean": "CeRAI DB mean",
-                "cerai_flagged": "CeRAI routes response",
-            },
-        )
-
         choice = st.selectbox(
             "Select a case to open",
             options=[r["ref_id"] for r in table_rows],
             key="case_explorer_choice",
+            format_func=lambda pid: (
+                f"{pid} · {plain_name(ref_by_id[pid].get('health_topic', 'Health'))}"
+            ),
         )
-        cols = st.columns([1, 5])
-        with cols[0]:
-            open_modal = st.button("Open Case Detail", type="primary")
+        open_modal = st.button("Open case", type="primary")
         if open_modal and choice:
             ctx = {
                 "ref_by_id": ref_by_id,
@@ -354,6 +327,25 @@ def main() -> None:
                 "hitl_reviews": hitl_repo,
             }
             _open_modal(choice, ctx)
+        page = st.selectbox(
+            "Results page",
+            range((len(table_rows) + 9) // 10),
+            format_func=lambda i: f"{i + 1} of {(len(table_rows) + 9) // 10}",
+        )
+        readable_table(
+            [
+                {
+                    "Case": r["ref_id"],
+                    "Topic": r["topic"],
+                    "Patient urgency": risk_name(r["reference_risk_tier"]),
+                    "Answer review": "Flagged"
+                    if r["healtheval_flagged"]
+                    else "Unflagged",
+                }
+                for r in table_rows[page * 10 : (page + 1) * 10]
+            ],
+            label="Reference cases",
+        )
     else:
         st.info(
             "No cases match the current filters. Widen the filters in the sidebar.",
