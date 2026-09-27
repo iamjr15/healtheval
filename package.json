@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "promptfoo": "0.121.20",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.138.0"
   },
   "scripts": {
     "test:worker": "node --test tests/worker/*.test.js",
