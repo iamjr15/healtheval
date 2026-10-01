@@ -1,4 +1,4 @@
-FROM ghcr.io/promptfoo/promptfoo:0.121.20
+FROM ghcr.io/promptfoo/promptfoo:0.123.0
 
 USER root
 
